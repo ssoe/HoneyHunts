@@ -5,15 +5,17 @@ Join the discord: https://discord.gg/ACePrQAmtH
 Send ffxiv s ranks to discord through webhooks. This project is connecting to a websocket from an external service providing S rank spawn and death notifications, reformats them and sends them to discord.
 includes:
 
-Custom role mentions, edit these to reflect your servers role ID's.
 
+sonarsrank.py - Sends S rank notifications using embed with map link. Edits post on new websocket events containing new info, such as player numbers and HP%. Hardcoded for Light, change this if needed.
 
-Customizable notification texts and embeds
+Csonarsrank.py - the same but for Chaos DC. I use 2 scripts right now because i havent merged them yet, will probably just do that later. Hardcoded for Chaos, change this if needed.
 
-Instance detecting when relevant.
- 
+sonarfates.py - Sends fate notifications related to S-rank spawning, currently only relevant for Minhocao, Orghana and Senmurv S ranks. Hardcoded for Light, change this if needed.
+It checks in database made by sonarsrank.py for relevant S rank death timers and will only post if spawn window is open.
 
-See "HuntDictionary.json" in repo for example, this is built for Light datacenter and will reflect that.
+getFates.py - Simple fetch from database made by sonarfates.py. Will fetch last 5 known fate states on a world and return it. Hardcoded for Light, change this if needed.
+
+See "HuntDictionary.json" in repo for example of dictionary expected, this is built for Light datacenter and will reflect that.
 
 
 HUNT_DICT_URL="foo.bar/HuntDictionary.json"
@@ -36,4 +38,4 @@ Ressources folder has scripts to pull world ID's and mob ID's, edit these to inc
 Note that xivApi does not have complete data for world ID's as of writing. If you need any world IDs that are missing, feel free to contact.
 
 
-
+Feel free to make PRs if relevant. Can be new features or optimization. Im not a software developer, this is my first "real" project while im learning for hobby projects, code is ugly.
