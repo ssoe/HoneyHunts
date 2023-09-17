@@ -17,12 +17,19 @@ See "HuntDictionary.json" in repo for example, this is built for Light datacente
 
 
 HUNT_DICT_URL="foo.bar/HuntDictionary.json"
+
 WEBHOOK_URL="https://discord.com/api/webhooks/0000000000000000000000"
+
 SRANK_ROLE_ID="00000000000000"
+
 WEBSOCKET_URL="wss://somewebsocket.somewhere"
+
 SENMURV_ROLE="00000000000000"
+
 ORGHANA_ROLE="00000000000000"
+
 MINHOCAO_ROLE="00000000000000"
+
 WEBHOOK_FATE_URL="https://discord.com/api/webhooks/0000000000000000000000"
 
 Ressources folder has scripts to pull world ID's and mob ID's, edit these to include your API key and run.
