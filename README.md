@@ -15,6 +15,8 @@ It checks in database made by sonarsrank.py for relevant S rank death timers and
 
 getFates.py - Simple fetch from database made by sonarfates.py. Will fetch last 5 known fate states on a world and return it. Hardcoded for Light, change this if needed.
 
+mapping.py - Records A/B rank locations to database. Upon S rank death, sonarsrank.py will delete entries based on world_id, zone_id and instance number. Will probably be merged into other script later
+
 See "HuntDictionary.json" in repo for example of dictionary expected, this is built for Light datacenter and will reflect that.
 
 
