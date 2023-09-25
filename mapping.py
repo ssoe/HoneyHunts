@@ -11,6 +11,50 @@ from discord.ext import commands
 #39, 71, 80, 83, 85, 97, 400, 401 Chaos world IDs
 #33, 36, 42, 56, 66, 67, 402, 403 Light world IDs
 filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
+zone_mob_map = {
+		"134": "Croque-mitaine",
+		"135": "Croakadile",
+		"137": "the Garlok",
+		"138": "Bonnacon",
+		"139": "Nandi",
+		"140": "Zona Seeker",
+		"141": "Brontes",
+		"145": "Lampalagua",
+		"146": "Nunyunuwi",
+		"147": "Minhocao",
+		"148": "Laideronnette",
+		"152": "Wulgaru",
+		"153": "mindflayer",
+		"154": "Thousand-cast Theda",
+		"155": "Safat",
+		"156": "Agrippa the Mighty",
+		"180": "Chernobog",
+		"397": "kaiser behemoth",
+		"398": "Senmurv",
+		"399": "the Pale Rider",
+		"400": "Gandarewa",
+		"401": "Bird of Paradise",
+		"402": "Leucrotta",
+		"612": "Udumbara",
+		"613": "Okina",
+		"614": "Gamma",
+		"620": "Bone Crawler",
+		"621": "Salt and Light",
+		"622": "Orghana",
+		"813": "Tyger",
+		"814": "forgiven pedantry",
+		"815": "Tarchia",
+		"816": "Aglaope",
+		"817": "Ixtab",
+		"818": "Gunitt",
+		"956": "Burfurlur the Canny",
+		"957": "sphatika",
+		"958": "Armstrong",
+		"959": "Ruminator",
+		"960": "Narrow-rift",
+		"961": "Ophioneus"
+	}
+
 load_dotenv()
 huntDict_url = os.getenv("HUNT_DICT_URL")
 WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
@@ -151,14 +195,23 @@ async def draw(world_id, zone_id, instance=0):
         im.save(f'maps/{zone_id}_mapped.jpg')
         
 @bot.command()
-async def map(ctx, zoneName: str, worldName: str):
-    # Find closest matching zone and world
-    zone_id = next((k for k, v in huntDic['zoneDictionary'].items() if zoneName.lower() in v[0].lower()), None)
+async def map(ctx, mobName: str, worldName: str):
+    # Convert mobName to lowercase to make the search case insensitive
+    mobName = mobName.lower()
+
+    # Look up zone_id using the mob name
+    zone_id = zone_mob_map.get(mobName)
+
+    # If no matching zone, send error
+    if not zone_id:
+        await ctx.send(f"No zone matches the mob '{mobName}'.")
+        return
+
     world_id = next((k for k, v in huntDic['EUWorldDictionary'].items() if worldName.lower() in v[0].lower()), None)
     
-    # If no matching zone or world is found, send an error message
-    if not zone_id or not world_id:
-        await    ctx.send("Invalid zone or world name.")
+    # If no matching world, send error
+    if not world_id:
+        await ctx.send(f"Invalid world name '{worldName}'.")
         return
 
     # Generate the map image
@@ -168,6 +221,7 @@ async def map(ctx, zoneName: str, worldName: str):
     # Send the image
     with open(image_path, 'rb') as img:
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
+
 
 @bot.event
 async def on_ready():
