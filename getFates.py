@@ -1,12 +1,15 @@
 import discord
 from discord.ext import commands
 import sqlite3
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 # Initialize the bot
 intents = discord.Intents.default()
 intents.message_content = True 
 bot = commands.Bot(command_prefix='!', intents=intents)
-
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 # Your dictionaries
 world_dict = {
     "33": "Twintania",
@@ -81,4 +84,4 @@ async def orghana(ctx, world_name):
 
 
 # Run the bot
-bot.run('MTE0NDMyNjIyNzEwOTM1NTUzMA.GN-kUc.k5JkmRdt2ldZam8xyG-TzRaPH59lpmYtbTe8B4')
+bot.run(DISCORD_TOKEN)
