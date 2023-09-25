@@ -225,6 +225,7 @@ async def map(ctx, mobName: str, worldName: str):
     # Send the image
     with open(image_path, 'rb') as img:
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
+    os.remove(image_path)
 
 
 
