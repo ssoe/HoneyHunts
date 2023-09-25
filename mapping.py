@@ -11,7 +11,7 @@ from discord.ext import commands
 #39, 71, 80, 83, 85, 97, 400, 401 Chaos world IDs
 #33, 36, 42, 56, 66, 67, 402, 403 Light world IDs
 filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
-zone_mob_map = {
+mob_zone_map = {
 		"134": "Croque-mitaine",
 		"135": "Croakadile",
 		"137": "the Garlok",
@@ -64,6 +64,8 @@ filter_types = ["Hunt"]
 intents = discord.Intents.default()
 intents.message_content = True 
 bot = commands.Bot(command_prefix='!', intents=intents)
+zone_mob_map = {v.lower(): k for k, v in mob_zone_map.items()}
+
 
 async def mapping(event):
     try:
@@ -198,16 +200,18 @@ async def draw(world_id, zone_id, instance=0):
 async def map(ctx, mobName: str, worldName: str):
     # Convert mobName to lowercase to make the search case insensitive
     mobName = mobName.lower()
+    worldName = worldName.lower()
 
-    # Look up zone_id using the mob name
-    zone_id = zone_mob_map.get(mobName)
+    # Look up zone_id using the mob name (even with partial matches)
+    zone_id = next((v for k, v in zone_mob_map.items() if mobName in k), None)
 
     # If no matching zone, send error
     if not zone_id:
         await ctx.send(f"No zone matches the mob '{mobName}'.")
         return
 
-    world_id = next((k for k, v in huntDic['EUWorldDictionary'].items() if worldName.lower() in v[0].lower()), None)
+    # Look up world_id
+    world_id = next((k for k, v in huntDic['EUWorldDictionary'].items() if worldName in v[0].lower()), None)
     
     # If no matching world, send error
     if not world_id:
@@ -221,6 +225,7 @@ async def map(ctx, mobName: str, worldName: str):
     # Send the image
     with open(image_path, 'rb') as img:
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
+
 
 
 @bot.event
