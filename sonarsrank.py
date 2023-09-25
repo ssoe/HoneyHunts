@@ -76,6 +76,7 @@ async def process_hunts(event):
                     message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
+                    deleteMapping(world_id, zone_id, instance)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
@@ -94,20 +95,24 @@ async def process_hunts(event):
                     message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
                     editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                     message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
+                    print(message_ids)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
+                    deleteMapping(world_id, zone_id, instance)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
                         embed.set_image(url=mapurl)
                         editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
+                        print(message_ids)
+
                     else:
                         firsttime = str(int(time.time()))
                         contentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.send(embed=embed, wait=True, content=contentstring)
                         message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
-
+                        print(message_ids)
 
             return 'Data processed and sent to webhook'
         
@@ -176,6 +181,18 @@ def setup_database():
     conn.close()
 
 setup_database()
+
+def deleteMapping(world_id, zone_id, instance):
+    try:
+        with sqlite3.connect('hunts.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+            DELETE FROM mapping
+            WHERE world_id = ? AND zone_id = ? AND instance = ?
+            ''', (world_id, zone_id, instance))
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return f"Failed to delete entries due to DB error: {e}"
 
 def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     conn = sqlite3.connect('hunts.db')
