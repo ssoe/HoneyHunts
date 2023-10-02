@@ -187,18 +187,18 @@ async def draw(world_id, zone_id, instance=0):
         # Iterate through the coordinates and draw circles
         for coord in coords:
             x, y = coord
-            # Convert string coordinates to float
+            
             x_pixel = 1024 + int(x)
             y_pixel = 1024 + int(y)
             #draw 24x24 red circles on map
-            draw.ellipse([(x_pixel-15, y_pixel-15), (x_pixel+15, y_pixel+15)], outline='red', fill='red')
+            draw.ellipse([(x_pixel-30, y_pixel-30), (x_pixel+30, y_pixel+30)], outline='red', fill='red')
         
         # Save the new image
         im.save(f'maps/{zone_id}_mapped.jpg')
         
 @bot.command()
-async def map(ctx, mobName: str, worldName: str):
-    # Convert mobName to lowercase to make the search case insensitive
+async def map(ctx, mobName: str, worldName: str, instance: int = 0):
+    # Convert mobName and worldName to lowercase to make the search case insensitive
     mobName = mobName.lower()
     worldName = worldName.lower()
 
@@ -219,12 +219,13 @@ async def map(ctx, mobName: str, worldName: str):
         return
 
     # Generate the map image
-    await draw(int(world_id), int(zone_id))
+    await draw(int(world_id), int(zone_id), instance)  # Passing the instance value
     image_path = f'maps/{zone_id}_mapped.jpg'
     
     # Send the image
     with open(image_path, 'rb') as img:
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
+    # Delete the image after sending it
     os.remove(image_path)
 
 
