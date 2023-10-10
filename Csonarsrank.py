@@ -76,6 +76,7 @@ async def process_hunts(event):
                     message = cwebhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
+                    deleteMapping(world_id, zone_id, instance)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
@@ -96,11 +97,12 @@ async def process_hunts(event):
                     message = cwebhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
+                    deleteMapping(world_id, zone_id, instance)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                        editcontentstring = f"<@&{csrank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         embed.set_image(url=mapurl)
+                        editcontentstring = f"<@&{csrank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = cwebhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
                     else:
                         firsttime = str(int(time.time()))
@@ -158,10 +160,10 @@ async def main():
     await connect_websocket()
     
 def setup_database():
-    with sqlite3.connect('chunts.db') as conn:
+    with sqlite3.connect('hunts.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS hunts (
+        CREATE TABLE IF NOT EXISTS Chunts (
             hunt_id INTEGER,
             world_id INTEGER,
             message_id INTEGER,
@@ -175,12 +177,24 @@ def setup_database():
 
 setup_database()
 
+def deleteMapping(world_id, zone_id, instance):
+    try:
+        with sqlite3.connect('hunts.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+            DELETE FROM mapping
+            WHERE world_id = ? AND zone_id = ? AND instance = ?
+            ''', (world_id, zone_id, instance))
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return f"Failed to delete entries due to DB error: {e}"
+
 def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
-    conn = sqlite3.connect('chunts.db')
+    conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
     cursor.execute('''
-    INSERT OR REPLACE INTO hunts (hunt_id, world_id, message_id, deathtimer, actorID)
+    INSERT OR REPLACE INTO Chunts (hunt_id, world_id, message_id, deathtimer, actorID)
     VALUES (?, ?, ?, ?, ?)
     ''', (hunt_id, world_id, message_id, deathtimer, actorID))
     
@@ -188,10 +202,10 @@ def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     conn.close()
     
 def get_from_database(hunt_id, world_id):
-    conn = sqlite3.connect('chunts.db')
+    conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
-    cursor.execute('SELECT message_id, deathtimer FROM hunts WHERE hunt_id = ? AND world_id = ?', (hunt_id, world_id))
+    cursor.execute('SELECT message_id, deathtimer FROM Chunts WHERE hunt_id = ? AND world_id = ?', (hunt_id, world_id))
     result = cursor.fetchone()
     
     conn.close()
