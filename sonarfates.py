@@ -8,13 +8,18 @@ import requests
 import os
 import time
 from datetime import datetime
+import sqlite3
 
+
+#hunt_id 5986 is orghana
+#hunt_id 4375 is senmurv
+#hunt_id 2961 is minhocao
 
 filter_types = ["Fate"]
 filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403]
 load_dotenv()
 huntDict_url = os.getenv("HUNT_DICT_URL")
-webhook_url = os.getenv("WEBHOOK_URL")
+webhook_url = os.getenv("WEBHOOK_FATE_URL")
 srankfate_role_id = os.getenv("SRANKFATE_ROLE_ID")
 senmurv_role_id = os.getenv("SENMURV_ROLE")
 orghana_role_id = os.getenv("ORGHANA_ROLE")
@@ -22,6 +27,17 @@ minhocao_role_id = os.getenv("MINHOCAO_ROLE")
 huntDic = requests.get(huntDict_url).json()
 webhookFateSrank = SyncWebhook.from_url(webhook_url)
 message_ids = {}  # Dictionary to store message IDs
+WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
+fate_to_hunt_map = {
+    1259: 5986,  # Orghana
+    831: 4375,  # Senmurv
+    556: 2961   # Minhocao
+}
+hunt_to_cooldown_map = {
+    5986: 84 * 3600,  # Orghana
+    4375: 84 * 3600,  # Senmurv
+    2961: 57 * 3600   # Minhocao
+}
 
 # Define a maximum age (in seconds) for a message ID to be considered valid
 MAX_MESSAGE_AGE = 900  # 15 minutes
@@ -83,9 +99,11 @@ async def process_fate_orghana(event):
         #message = webhookFateSrank.send(embed=embed, wait=True, content=contentstring)
         if (fate_id, world_id) in message_ids:
             message_id, _ = message_ids[(fate_id, world_id)]
+            insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message = webhookFateSrank.edit_message(message_id, embed=embed, content=contentstring)
         else:
             message = webhookFateSrank.send(embed=embed, wait=True, content=contentstring)
+            insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message_ids[(fate_id, world_id)] = (message.id, time.time())
         print(message.id)
         
@@ -93,6 +111,7 @@ async def process_fate_orghana(event):
         #print("message ID: " + previous_message_id)
     else:
         print(f"Filtered event: ID={fate_id}, WorldID={world_id}, ZoneID={zone_id}")
+        
 
 
 async def process_fate_senmurv(event):
@@ -148,8 +167,10 @@ async def process_fate_senmurv(event):
         if (fate_id, world_id) in message_ids:
             message_id, _ = message_ids[(fate_id, world_id)]
             message = webhookFateSrank.edit_message(message_id, embed=embed, content=contentstring)
+            insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
         else:
             message = webhookFateSrank.send(embed=embed, wait=True, content=contentstring)
+            insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message_ids[(fate_id, world_id)] = (message.id, time.time())
         print(message.id)
         #previous_message_id = message.id
@@ -211,9 +232,11 @@ async def process_fate_minhocao(event):
         #message = webhookFateSrank.send(embed=embed, wait=True, content=contentstring)
         if (fate_id, world_id) in message_ids:
             message_id, _ = message_ids[(fate_id, world_id)]
+            insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message = webhookFateSrank.edit_message(message_id, embed=embed, content=contentstring)
         else:
             message = webhookFateSrank.send(embed=embed, wait=True, content=contentstring)
+            insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message_ids[(fate_id, world_id)] = (message.id, time.time())
         print(message.id)
 ##        previous_message_id = message.id
@@ -224,48 +247,137 @@ async def process_fate_minhocao(event):
 
 
 async def filter_events():
+    while True:  # This loop will keep trying to connect
+        print("Attempting to connect to WebSocket...")
+        try:
+            async with websockets.connect(WEBSOCKET_URL) as websocket:
+                print("Successfully connected to WebSocket!")
+                while True:
+                    data = await websocket.recv()
+                    event = json.loads(data)
+                    event_type = event.get("Type")
+                    fate_id = event.get("Id")
+                    world_id = event.get("WorldId")
+                    status_id = event.get("Status")
+                    if event_type in filter_types and fate_id in [1259, 831, 556] and world_id in filter_worlds:
+                        print(f"Received event: {event}")
+                        print("Now checking database for dead hunts...")
+                    # Map the fate_id to the corresponding hunt_id
+                        hunt_id = fate_to_hunt_map.get(fate_id)
+
+                        # Check the database for the corresponding hunt_id and world_id
+                        db_result = get_from_database(hunt_id, world_id)
+                        if db_result:
+                            deathtimer = db_result[0]
+                            current_time = int(time.time())
+                            cooldown_time = hunt_to_cooldown_map.get(hunt_id)
+                            if current_time - deathtimer > cooldown_time:
+                                delete_from_database(hunt_id, world_id)
+                                print(f"Checking if window open... It is! deleted {hunt_id}, {world_id} from database")
+                            else:
+                                # If the deathtimer is not more than 84 hours old, ignore the event
+                                print("oopsiewoopsie, the swanky window is closed! Ignoring event")
+                                continue
+                                
+
+                        # Process the event if there's no matching entry in the database or if the entry was deleted
+                        if fate_id == 1259:
+                            await process_fate_orghana(event)
+                        elif fate_id == 831:
+                            await process_fate_senmurv(event)
+                        elif fate_id == 556:
+                            await process_fate_minhocao(event)
+
+                            # Check if the status is 3 (completed) or 4 (failed)
+                            # or if the message ID is older than the maximum age
+                        if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
+                            del message_ids[(fate_id, world_id)]
+                                
+        except sqlite3.Error as e:
+            print(f"Database error {e}")
+            await asyncio.sleep(5)
+            continue
+        
+        except websockets.exceptions.ConnectionClosedError as e:
+            print(e)
+            print("WebSocket connection closed unexpectedly. Reconnecting...")
+            await asyncio.sleep(5)  # Wait for a few seconds before reconnecting
+            continue
+
+        except websockets.exceptions.ConnectionClosed as e:
+            print(e)
+            await websocket.close()
+            await asyncio.sleep(5)
+            continue
+
+        except Exception as e:
+            print(f"Unexpected error with WebSocket: {e}")
+            await asyncio.sleep(5)  # Consider adding a delay before retrying
+            continue
+
+
+def get_from_database(hunt_id, world_id):
+    conn = sqlite3.connect('hunts.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT deathtimer FROM hunts WHERE hunt_id = ? AND world_id = ?', (hunt_id, world_id))
+    result = cursor.fetchone()
+    print(f"Retrieved entry for hunt_id {hunt_id}, world_id {world_id} from the database: {result}")
+    conn.close()
+    return result
+
+def delete_from_database(hunt_id, world_id, starttime):
+    conn = sqlite3.connect('hunts.db')
+    cursor = conn.cursor()
+    print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id} from the database.")
+    cursor.execute('DELETE FROM hunts WHERE hunt_id = ? AND world_id = ? AND starttime = ?', (hunt_id, world_id, starttime))
+    conn.commit()
+    conn.close()
+    
+# Create a new SQLite database and table (run this once)
+conn = sqlite3.connect('fates.db')
+cursor = conn.cursor()
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS fate_statuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fate_id INTEGER,
+    world_id INTEGER,
+    status INTEGER,
+    time INTEGER,
+    starttime INTEGER
+);
+''')
+conn.commit()
+conn.close()
+
+# Function to insert status into fates.db
+def insert_status_to_fates_db(fate_id, world_id, statusid, start_time):
     try:
-        async with websockets.connect("wss://api.ffxivsonar.com/feed/relay") as websocket:
-            while True:
-                data = await websocket.recv()
-                event = json.loads(data)
-                event_type = event.get("Type")
-                fate_id = event.get("Id")
-                world_id = event.get("WorldId")
-                status_id = event.get("Status")
-
-                if event_type in filter_types and fate_id in [1259, 831, 556] and world_id in filter_worlds:
-                    if fate_id == 1259:
-                        await process_fate_orghana(event)
-                    elif fate_id == 831:
-                        await process_fate_senmurv(event)
-                    elif fate_id == 556:
-                        await process_fate_minhocao(event)
-
-                    # Check if the status is 3 (completed) or 4 (failed)
-                    # or if the message ID is older than the maximum age
-                    if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
-                        del message_ids[(fate_id, world_id)]
-
-    except websockets.exceptions.ConnectionClosedError:
-        print("WebSocket connection closed unexpectedly. Reconnecting...")
-        await websocket.close()
-        await asyncio.sleep(5)  # Wait for a few seconds before reconnecting
+        conn = sqlite3.connect('fates.db')
+        cursor = conn.cursor()
         
-        # Re-establish the WebSocket connection
-        await establish_connection()
+        # Check if a record with the given fate_id, world_id, and start_time already exists
+        cursor.execute('SELECT * FROM fate_statuses WHERE fate_id = ? AND world_id = ? AND starttime = ?', (fate_id, world_id, start_time))
+        existing_record = cursor.fetchone()
         
-        # Retry the filter_events() function
-        await filter_events()
+        current_time = int(time.time())
+        
+        if existing_record:
+            # Update the existing record
+            cursor.execute('UPDATE fate_statuses SET status = ?, time = ? WHERE fate_id = ? AND world_id = ? AND starttime = ?', (statusid, current_time, fate_id, world_id, start_time))
+        else:
+            # Insert a new record
+            cursor.execute('INSERT INTO fate_statuses (fate_id, world_id, status, time, starttime) VALUES (?, ?, ?, ?, ?)', (fate_id, world_id, statusid, current_time, start_time))
+        
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
-
-async def establish_connection():
-    await filter_events()
-    pass
 
 async def main():
-    await establish_connection()
     await filter_events()
 
 asyncio.run(main())
