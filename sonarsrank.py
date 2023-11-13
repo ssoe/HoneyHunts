@@ -95,7 +95,7 @@ async def process_hunts(event):
                     message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
                     editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                     message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
-                    print(message_ids)
+                    #print(message_ids)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
                     deleteMapping(world_id, zone_id, instance)
@@ -105,14 +105,14 @@ async def process_hunts(event):
                         embed.set_image(url=mapurl)
                         editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
-                        print(message_ids)
+                        #print(message.id)
 
                     else:
                         firsttime = str(int(time.time()))
                         contentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.send(embed=embed, wait=True, content=contentstring)
                         message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
-                        print(message_ids)
+                        #print(message.id)
 
             return 'Data processed and sent to webhook'
         
