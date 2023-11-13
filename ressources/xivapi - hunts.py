@@ -1,5 +1,5 @@
 import requests
-privatekey = "2e83e393f8514689a043e7a231b32f3f1d2b0d60dfec41b4af0547528017c3ab"
+privatekey = ""
 apiEndpoint = "https://xivapi.com"
 
 ###########################################
