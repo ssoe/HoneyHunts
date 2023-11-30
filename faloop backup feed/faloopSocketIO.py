@@ -106,7 +106,7 @@ def sendSpawn(faloopWebhook, data, hunt_id, world_id, zone_id, pos_id, instance)
     if coords:
         x, y = [value.strip() for value in coords.split(',')]
         mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={x}&flagy={y}"
-        message = f"<@&{srank_role_id}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, Timestamp: <t:{timer}:R>, {mapurl}"
+        message = f"<@&{srank_role_id}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, in instance: {instance}, Timestamp: <t:{timer}:R>, {mapurl}"
     
         zoneIds[(hunt_id, world_id, instance)] = (zone_id)
         faloopWebhook.send(message)
@@ -118,7 +118,7 @@ def sendDeath(faloopWebhook, data, hunt_id, world_id, instance):
     mobName = mobs[str(hunt_id)]
     zone_id = zoneIds[(hunt_id, world_id, instance)]
     
-    message = f"Srank {mobName[0]} on {worldName[0]} died"
+    message = f"Srank {mobName[0]} on {worldName[0]} in instance: {instance} died"
     faloopWebhook.send(message)
     faloopWebhook.send(data)
     print("death sent to Discord successfully.")
