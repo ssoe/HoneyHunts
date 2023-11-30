@@ -9,7 +9,7 @@ import sqlite3
 import time
 
 sio = socketio.Client(logger=True, reconnection=True, reconnection_delay=5, reconnection_attempts=0)
-1144937436498116728
+
 username = os.getenv('FALOOP_USERNAME')
 password = os.getenv('FALOOP_PASSWORD')
 huntDict_url = os.getenv("HUNT_DICT_URL")
