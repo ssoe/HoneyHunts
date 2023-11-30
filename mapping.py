@@ -8,6 +8,7 @@ import sqlite3
 from PIL import Image, ImageDraw
 import discord
 from discord.ext import commands
+import time
 #39, 71, 80, 83, 85, 97, 400, 401 Chaos world IDs
 #33, 36, 42, 56, 66, 67, 402, 403 Light world IDs
 filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
@@ -67,35 +68,36 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 zone_mob_map = {v.lower(): k for k, v in mob_zone_map.items()}
 
 
-async def mapping(event):
+async def mapping(event):  # sourcery skip: move-assign
     try:
         #Get Raw data
         hunt_id = event.get("Id")
         world_id = event.get("WorldId")
         zone_id = event.get("ZoneId")
         coords = event.get('Coords')
-        rawxcoord = coords.get('X')
-        rawycoord = coords.get('Y')
+        rawX = coords.get('X')
+        rawY = coords.get('Y')
         instance = event.get('InstanceId')
         actorID = event.get('ActorId')
+        timestamp = int(time.time())
 
-        #process raw data
-        flagXcoord = int(rawxcoord)
-        flagYcoord = int(rawycoord)
         zones = huntDic['zoneDictionary']
         zoneName = zones[str(zone_id)]
         worlds = huntDic['EUWorldDictionary']
         worldName = worlds[str(world_id)]
-        
+        flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
+        flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
+
         if hunt_id and zoneName:
-            saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, actorID)
-            
-            
+            #process raw data
+            saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+
+
     except sqlite3.Error as e:
         print(f"Database error {e}")
         print(event)
         return f"failed to process data due to DB error: {e}"
-    
+
     except Exception as e:
         print(f"Uexpected error: {e}")
         return f"failed to process data due to error {e}"
@@ -134,14 +136,14 @@ async def connect_websocket():
             await asyncio.sleep(5)  
             continue
 
-def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, actorID):
+def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
     cursor.execute('''
-    INSERT OR REPLACE INTO mapping (hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, actorID)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, actorID))
+    INSERT OR REPLACE INTO mapping (hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp))
     
     conn.commit()
     conn.close()
@@ -158,6 +160,9 @@ def setup_database():
             flagXcoord TEXT,
             flagYcoord TEXT,
             actorID INTEGER,
+            timestamp INTEGER,
+            rawX TEXT,
+            rawY TEXT,            
             PRIMARY KEY (actorID)
         )
         ''')
@@ -170,31 +175,49 @@ def fetch_coordinates(world_id, zone_id, instance):
     with sqlite3.connect('hunts.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT flagXcoord, flagYcoord FROM mapping 
+        SELECT rawX, rawY FROM mapping 
         WHERE world_id = ? AND zone_id = ? AND instance = ?
         ''', (world_id, zone_id, instance))
         
         return cursor.fetchall()
 
+    
+def fixMapping(world_id, zone_id, instance, timestamp):
+    with sqlite3.connect('hunts.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+        DELETE FROM mapping
+        WHERE world_id = ? AND zone_id = ? AND instance = ? AND timestamp < ?
+        ''', (world_id, zone_id, instance, timestamp))
+        print("deleted")
+        conn.commit()
+    
+
 async def draw(world_id, zone_id, instance=0):
     coords = fetch_coordinates(world_id, zone_id, instance)
-    image_path = f'maps/{zone_id}.jpg'
-    
+    #print(f"Coordinates: {coords}")  # Debug: Print coordinates
+
+    mapped_image_path = f'maps/{zone_id}_mapped.jpg'
+    base_image_path = f'maps/{zone_id}.jpg'
+    #print(f"Base Image Path: {base_image_path}")  # Debug: Verify base image path
+
     # Open the image
-    with Image.open(image_path) as im:
+    with Image.open(base_image_path) as im:
         draw = ImageDraw.Draw(im)
         
         # Iterate through the coordinates and draw circles
-        for coord in coords:
-            x, y = coord
-            
+        for x, y in coords:
             x_pixel = 1024 + int(x)
             y_pixel = 1024 + int(y)
-            #draw 24x24 red circles on map
-            draw.ellipse([(x_pixel-30, y_pixel-30), (x_pixel+30, y_pixel+30)], outline='red', fill='red')
+            print(f"Drawing at: {x_pixel}, {y_pixel}")  # Debug: Print drawing coordinates
+            draw.ellipse([(x_pixel-20, y_pixel-20), (x_pixel+20, y_pixel+20)], outline='red', fill='red')
         
         # Save the new image
-        im.save(f'maps/{zone_id}_mapped.jpg')
+        im.save(mapped_image_path)
+        #print(f"Image saved: {mapped_image_path}")  # Debug: Confirm image saving
+
+    return len(coords), mapped_image_path
+
         
 @bot.command()
 async def map(ctx, mobName: str, worldName: str, instance: int = 0):
@@ -218,17 +241,44 @@ async def map(ctx, mobName: str, worldName: str, instance: int = 0):
         await ctx.send(f"Invalid world name '{worldName}'.")
         return
 
+
     # Generate the map image
-    await draw(int(world_id), int(zone_id), instance)  # Passing the instance value
-    image_path = f'maps/{zone_id}_mapped.jpg'
+    data_count, mapped_image_path = await draw(int(world_id), int(zone_id), instance)
     
     # Send the image
-    with open(image_path, 'rb') as img:
+    with open(mapped_image_path, 'rb') as img:
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
+        await ctx.send(f"Map generated using {data_count} data points.")
     # Delete the image after sending it
-    os.remove(image_path)
+    os.remove(mapped_image_path)
 
+@bot.command()
+async def fixmap(ctx, mobName: str, worldName: str, instance: int = 0, timestamp: int = 0):
+# Convert mobName and worldName to lowercase to make the search case insensitive
+    mobName = mobName.lower()
+    worldName = worldName.lower()
 
+    # Look up zone_id using the mob name (even with partial matches)
+    zone_id = next((v for k, v in zone_mob_map.items() if mobName in k), None)
+
+    # If no matching zone, send error
+    if not zone_id:
+        await ctx.send(f"No zone matches the mob '{mobName}'.")
+        return
+
+    # Look up world_id
+    world_id = next((k for k, v in huntDic['EUWorldDictionary'].items() if worldName in v[0].lower()), None)
+    
+    # If no matching world, send error
+    if not world_id:
+        await ctx.send(f"Invalid world name '{worldName}'.")
+        return    
+    
+    #delete the old mapping points
+    fixMapping(world_id, zone_id, instance, timestamp)
+    await ctx.send("mapping deleted good luck kiddo")
+    return
+    
 
 @bot.event
 async def on_ready():
