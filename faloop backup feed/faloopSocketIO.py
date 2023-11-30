@@ -9,7 +9,7 @@ import sqlite3
 import time
 
 sio = socketio.Client(logger=True, reconnection=True, reconnection_delay=5, reconnection_attempts=0)
-
+1144937436498116728
 username = os.getenv('FALOOP_USERNAME')
 password = os.getenv('FALOOP_PASSWORD')
 huntDict_url = os.getenv("HUNT_DICT_URL")
@@ -17,8 +17,11 @@ webhook_url = os.getenv('FALOOP_WEBHOOK')
 faloopWebhook = SyncWebhook.from_url(webhook_url)
 huntDic = requests.get(huntDict_url).json()
 srank_role_id = os.getenv("SRANK_ROLE_ID")
+csrank_role_id = os.getenv("CSRANK_ROLE_ID")
 mobs = huntDic['MobDictionary']
-worlds = huntDic['WorldDictionary']
+worlds = huntDic['EUWorldDictionary']
+lightWorlds = huntDic['WorldDictionary']
+chaosWorlds = huntDic['CworldDictionary']
 zones = huntDic['zoneDictionary']
 ss = [8815, 8916, 10615, 10616] #to filter out SS ranks and minions
 zoneIds = {} #dictionary for storing zone_id on spawn to use again on death because floop doesnt send zone_id on death?????????
@@ -106,8 +109,12 @@ def sendSpawn(faloopWebhook, data, hunt_id, world_id, zone_id, pos_id, instance)
     if coords:
         x, y = [value.strip() for value in coords.split(',')]
         mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={x}&flagy={y}"
-        message = f"<@&{srank_role_id}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, in instance: {instance}, Timestamp: <t:{timer}:R>, {mapurl}"
-    
+        if world_id in lightWorlds:
+            srank_role = srank_role_id
+        if world_id in chaosWorlds:
+            srank_role = csrank_role_id  
+        
+        message = f"<@&{srank_role}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, in instance: {instance}, Timestamp: <t:{timer}:R>, {mapurl}"
         zoneIds[(hunt_id, world_id, instance)] = (zone_id)
         faloopWebhook.send(message)
         faloopWebhook.send(data)
