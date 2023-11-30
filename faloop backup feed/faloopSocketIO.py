@@ -8,8 +8,6 @@ import requests
 import sqlite3
 import time
 
-
-
 sio = socketio.Client(logger=True, reconnection=True, reconnection_delay=5, reconnection_attempts=0)
 
 username = os.getenv('FALOOP_USERNAME')
@@ -22,7 +20,7 @@ srank_role_id = os.getenv("SRANK_ROLE_ID")
 mobs = huntDic['MobDictionary']
 worlds = huntDic['WorldDictionary']
 zones = huntDic['zoneDictionary']
-ss = [8815, 8916, 10615, 10616]
+ss = [8815, 8916, 10615, 10616] #to filter out SS ranks and minions
 zoneIds = {} #dictionary for storing zone_id on spawn to use again on death because floop doesnt send zone_id on death?????????
 
 @sio.event
@@ -71,7 +69,6 @@ def connectFaloopSocketio(session_id, jwt_token):
 #spawned S rank
 #{'type': 'mob', 'subType': 'report', 'data': {'action': 'spawn', 'mobId': 2962, 'worldId': 42, 'zoneInstance': 0, 'data': {'zoneId': 134, 'zonePoiIds': [27], 'timestamp': '2023-11-28T19:53:54.648Z', 'window': 1}}}
 #dead srank
-#{'type': 'mobworldkill', 'subType': 'recentAdd', 'data': {'id': 1180329, 'mobId': 2962, 'worldId': 42, 'zoneInstance': None, 'spawnedAt': '2023-11-28T19:53:54.648Z', 'killedAt': '2023-11-28T19:57:06.919Z'}}
 #{'type': 'mob', 'subType': 'report', 'data': {'action': 'death', 'mobId': 10618, 'worldId': 33, 'zoneInstance': 3, 'data': {'num': 1, 'startedAt': '2023-11-29T19:27:23.322Z', 'prevStartedAt': '2023-11-23T19:48:46.901Z'}}}
 def filter_data(data):
     # Ensure the data meets your criteria before sending
@@ -111,7 +108,6 @@ def sendSpawn(faloopWebhook, data, hunt_id, world_id, zone_id, pos_id, instance)
         mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={x}&flagy={y}"
         message = f"<@&{srank_role_id}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, Timestamp: <t:{timer}:R>, {mapurl}"
     
-        # Create webhook instance and send the message
         zoneIds[(hunt_id, world_id, instance)] = (zone_id)
         faloopWebhook.send(message)
         faloopWebhook.send(data)
@@ -132,21 +128,14 @@ def sendDeath(faloopWebhook, data, hunt_id, world_id, instance):
     
 def getCoords(pos_id, zone_id):
     try:
-        # Connect to the SQLite database
-        conn = sqlite3.connect('faloopdb.db')
-        cursor = conn.cursor()
-
-        # Query to select the coordinates
-        query = "SELECT coords FROM zone_positions WHERE posId = ? AND zoneId = ?"
-        cursor.execute(query, (pos_id, zone_id))
-        
-        # Fetch the result
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
-        # Return the coordinates if found, otherwise return None
-        return result[0] if result else None
+        with sqlite3.connect('faloopdb.db') as conn:
+            cursor = conn.cursor()
+            query = "SELECT coords FROM zone_positions WHERE posId = ? AND zoneId = ?"
+            cursor.execute(query, (pos_id, zone_id))
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return result[0] if result else None
     except sqlite3.Error as e:
         print(f"SQLite error: {e}")
         return None
@@ -155,10 +144,10 @@ def deleteMapping(world_id, zone_id, instance):
     try:
         with sqlite3.connect('hunts.db') as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-            DELETE FROM mapping
-            WHERE world_id = ? AND zone_id = ? AND instance = ?
-            ''', (world_id, zone_id, instance))
+            query = "DELETE FROM mapping WHERE world_id = ? AND zone_id = ? AND instance = ?"
+            cursor.execute(query, (world_id, zone_id, instance))
+            cursor.close()
+            conn.close()
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return f"Failed to delete entries due to DB error: {e}"
@@ -168,11 +157,7 @@ try:
     responseJWTsessionID = getJWTsessionID()
     session_id = responseJWTsessionID.get("sessionId")
     jwt_token = responseJWTsessionID.get("token")
-
-    
     login_response = login(session_id, jwt_token, username, password)
-    
-
     
     connectFaloopSocketio(session_id, jwt_token)
 except Exception as e:
