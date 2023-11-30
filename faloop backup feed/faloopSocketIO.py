@@ -16,10 +16,14 @@ username = os.getenv('FALOOP_USERNAME')
 password = os.getenv('FALOOP_PASSWORD')
 huntDict_url = os.getenv("HUNT_DICT_URL")
 webhook_url = os.getenv('FALOOP_WEBHOOK')
+faloopWebhook = SyncWebhook.from_url(webhook_url)
 huntDic = requests.get(huntDict_url).json()
 srank_role_id = os.getenv("SRANK_ROLE_ID")
 mobs = huntDic['MobDictionary']
+worlds = huntDic['WorldDictionary']
+zones = huntDic['zoneDictionary']
 ss = [8815, 8916, 10615, 10616]
+zoneIds = {} #dictionary for storing zone_id on spawn to use again on death because floop doesnt send zone_id on death?????????
 
 @sio.event
 def connect():
@@ -37,7 +41,7 @@ def disconnect():
 def catch_all(event, data):
     #print("Message received:", data)
     #print("event received: ", event)
-    discordPost(webhook_url, data)
+    filter_data(data)
     
     with open('received_events.txt', 'a') as file:
         file.write(f"{data}\n")
@@ -69,7 +73,7 @@ def connectFaloopSocketio(session_id, jwt_token):
 #dead srank
 #{'type': 'mobworldkill', 'subType': 'recentAdd', 'data': {'id': 1180329, 'mobId': 2962, 'worldId': 42, 'zoneInstance': None, 'spawnedAt': '2023-11-28T19:53:54.648Z', 'killedAt': '2023-11-28T19:57:06.919Z'}}
 #{'type': 'mob', 'subType': 'report', 'data': {'action': 'death', 'mobId': 10618, 'worldId': 33, 'zoneInstance': 3, 'data': {'num': 1, 'startedAt': '2023-11-29T19:27:23.322Z', 'prevStartedAt': '2023-11-23T19:48:46.901Z'}}}
-def discordPost(webhook_url, data):
+def filter_data(data):
     # Ensure the data meets your criteria before sending
     mobs = huntDic['MobDictionary']
     if (data.get('type') == 'mob' and 
@@ -77,58 +81,55 @@ def discordPost(webhook_url, data):
         data.get('data', {}).get('action') == 'spawn' and
         str(data['data']['mobId']) in mobs and
         data['data']['mobId'] not in ss):
-        
-        # Extract the relevant information
-        mob_id = data['data']['mobId']
-        world_id = data['data']['worldId']
-        zone_id = data['data']['data']['zoneId']
-        pos_id = int(data['data']['data']['zonePoiIds'][0])
-        #ids to names
-        worlds = huntDic['WorldDictionary']
-        worldName = worlds[str(world_id)]
-        #mobs = huntDic['MobDictionary']
-        mobName = mobs[str(mob_id)]
-        zones = huntDic['zoneDictionary']
-        zoneName = zones[str(zone_id)]
-        coords = getCoords(pos_id, zone_id)
-        #print(coords)
-        #print(type(coords))
-        timer = int(time.time())
-        faloopWebhook = SyncWebhook.from_url(webhook_url)
-        
-        if coords:
-            x, y = [value.strip() for value in coords.split(',')]
-            mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={x}&flagy={y}"
-            message = f"<@&{srank_role_id}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, Timestamp: <t:{timer}:R>, {mapurl}"
-        
-            # Create webhook instance and send the message
-            faloopWebhook.send(message)
-            faloopWebhook.send(data)
-            print("Message sent to Discord successfully.")
+            hunt_id = data['data']['mobId']
+            world_id = data['data']['worldId']
+            zone_id = data['data']['data']['zoneId']
+            pos_id = int(data['data']['data']['zonePoiIds'][0])
+            instance = data['data']['zoneInstance']
+            sendSpawn(data, hunt_id, world_id, zone_id, pos_id, instance)
             
     if (data.get('type') == 'mob' and 
         data.get('subType') == 'report' and 
         data.get('data', {}).get('action') == 'death' and
         str(data['data']['mobId']) in mobs and
         data['data']['mobId'] not in ss):
-            # Extract the relevant information
-            mob_id = data['data']['mobId']
+        
+            hunt_id = data['data']['mobId']
             world_id = data['data']['worldId']
-            instance = data['data']['zoneInstance'][0]
-
-            worlds = huntDic['WorldDictionary']
-            worldName = worlds[str(world_id)]
-            mobName = mobs[str(mob_id)]
-            faloopWebhook = SyncWebhook.from_url(webhook_url)
-            
-            message = f"srank {mobName} on {worldName[0]} died"
-            faloopWebhook.send(message)
-            faloopWebhook.send(data)
-            print("death sent to Discord successfully.")
-            deleteMapping(world_id, zone_id, instance)
-            print("mapping yeeted")
+            instance = data['data']['zoneInstance']
+            sendDeath(data, hunt_id, world_id, instance)
     
+def sendSpawn(faloopWebhook, data, hunt_id, world_id, zone_id, pos_id, instance):
+    worldName = worlds[str(world_id)]
+    mobName = mobs[str(hunt_id)]
+    zoneName = zones[str(zone_id)]
+    coords = getCoords(pos_id, zone_id)
+    timer = int(time.time())
+    
+    if coords:
+        x, y = [value.strip() for value in coords.split(',')]
+        mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={x}&flagy={y}"
+        message = f"<@&{srank_role_id}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, Timestamp: <t:{timer}:R>, {mapurl}"
+    
+        # Create webhook instance and send the message
+        zoneIds[(hunt_id, world_id, instance)] = (zone_id)
+        faloopWebhook.send(message)
+        faloopWebhook.send(data)
+        print("Message sent to Discord successfully.")
 
+def sendDeath(faloopWebhook, data, hunt_id, world_id, instance):
+    worldName = worlds[str(world_id)]
+    mobName = mobs[str(hunt_id)]
+    zone_id = zoneIds[(hunt_id, world_id, instance)]
+    
+    message = f"Srank {mobName[0]} on {worldName[0]} died"
+    faloopWebhook.send(message)
+    faloopWebhook.send(data)
+    print("death sent to Discord successfully.")
+    deleteMapping(world_id, zone_id, instance)
+    print("mapping yeeted")
+    del zoneIds[(hunt_id, world_id, instance)]    
+    
 def getCoords(pos_id, zone_id):
     try:
         # Connect to the SQLite database
