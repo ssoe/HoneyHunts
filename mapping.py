@@ -9,8 +9,10 @@ from PIL import Image, ImageDraw
 import discord
 from discord.ext import commands
 import time
+import math
 #39, 71, 80, 83, 85, 97, 400, 401 Chaos world IDs
 #33, 36, 42, 56, 66, 67, 402, 403 Light world IDs
+hw = [397, 398, 399, 400, 401, 402]
 filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
 mob_zone_map = {
 		"134": "Croque-mitaine",
@@ -205,11 +207,22 @@ async def draw(world_id, zone_id, instance=0):
     with Image.open(base_image_path) as im:
         draw = ImageDraw.Draw(im)
         
+        MAX_PERCENT_TO_SHRINK = 0.11  # Any pixel that is at the distance of sqrt(MAX_IMG_X**2 + MAX_IMG_Y**2) gets shrunk this much
+        MAX_IMG_X = 1024
+        MAX_IMG_Y = 1024
         # Iterate through the coordinates and draw circles
-        for x, y in coords:
-            x_pixel = 1024 + int(x)
-            y_pixel = 1024 + int(y)
-            print(f"Drawing at: {x_pixel}, {y_pixel}")  # Debug: Print drawing coordinates
+        for coord in coords:
+            x, y = coord
+            if zone_id in hw:
+                MAX_IMG_DIST = math.sqrt(MAX_IMG_X ** 2 + MAX_IMG_Y ** 2)
+                adjusted_x = int(x)*(1 - abs(int(x))/MAX_IMG_DIST*MAX_PERCENT_TO_SHRINK)
+                adjusted_y = int(y)*(1 - abs(int(y))/MAX_IMG_DIST*MAX_PERCENT_TO_SHRINK)
+                x_pixel = 1024 + int(adjusted_x)
+                y_pixel = 1024 + int(adjusted_y)
+            else:
+                x_pixel = 1024 + int(x)
+                y_pixel = 1024 + int(y)
+            #print(f"Drawing at: {x_pixel}, {y_pixel}")  # Debug: Print drawing coordinates
             draw.ellipse([(x_pixel-20, y_pixel-20), (x_pixel+20, y_pixel+20)], outline='red', fill='red')
         
         # Save the new image
