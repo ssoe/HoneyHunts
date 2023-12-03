@@ -21,10 +21,7 @@ class Location:
 
     @staticmethod
     def raw_to_coord(raw_coord, zone_id):
-        if zone_id in HEAVENSWARD_ZONES:
-            map_size = 43.1
-        else:
-            map_size = 41
+        map_size = 43.1 if zone_id in HEAVENSWARD_ZONES else 41
         return (map_size * ((raw_coord + 1024) / 2048)) + 1
     
     def flag(self):
@@ -32,17 +29,12 @@ class Location:
     
     @staticmethod
     def coord_to_raw(coord, zone_id):
-        if zone_id in HEAVENSWARD_ZONES:
-            map_size = 43.1
-        else:
-            map_size = 41
+        map_size = 43.1 if zone_id in HEAVENSWARD_ZONES else 41
         return (coord - 1) * (2048 / map_size) - 1024
 
     def __repr__(self):
-        pos_id_str = ""
-        if self.pos_id:
-            pos_id_str = f", pos_id:{self.pos_id}"
-        return f"(Location: zone: {self.zone_id}, raw: ({self.raw_x}, {self.raw_y}), flag: {self.flag()}{pos_id_str})"
+        pos_id_str = f"pos_id:{self.pos_id}" if self.pos_id else ""
+        return f"(Location: zone: {self.zone_id}, raw: ({self.raw_x}, {self.raw_y}), {pos_id_str})"
     
 
 def kmeans(points, initial_guesses, iterations = 50):
@@ -99,10 +91,10 @@ def kmeans(points, initial_guesses, iterations = 50):
     return centroids
 
 
-def get_adjusted_spawn_locations(zone_id):
+def get_adjusted_spawn_locations(world_id, zone_id, instance):
     with sqlite3.connect('hunts.db') as conn:
         cursor = conn.cursor()
-        cursor.execute('''SELECT flagXcoord, flagYcoord FROM pixelmapping WHERE zone_id = ?''', (zone_id,))
+        cursor.execute('''SELECT rawX, rawY FROM mapping WHERE world_id = ? AND zone_id = ? AND instance = ?''', (world_id, zone_id, instance))
         spawn_data = [Location(int(x[0]), int(x[1]), zone_id) for x in cursor.fetchall()]
 
         cursor.execute('''SELECT coords, posId FROM zone_positions WHERE zoneId = ?''', (zone_id,))
