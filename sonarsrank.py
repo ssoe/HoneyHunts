@@ -11,14 +11,31 @@ import sqlite3
 
 # Load environment variables
 load_dotenv()
-WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
+WEBSOCKET_URL = os.getenv("WEBSOCKET_URL")
 filter_types = ["Hunt"]
-filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403]
 huntDict_url = os.getenv("HUNT_DICT_URL")
-webhook_url = os.getenv("WEBHOOK_URL")
-srank_role_id = os.getenv("SRANK_ROLE_ID")
 huntDic = requests.get(huntDict_url).json()
-webhookSrank = SyncWebhook.from_url(webhook_url)
+lightUrl = os.getenv("WEBHOOK_URL")
+chaosUrl = os.getenv("CWEBHOOK_URL")
+light_role_id = os.getenv("SRANK_ROLE_ID")
+chaos_role_id = os.getenv("CSRANK_ROLE_ID")
+arr_srank = os.getenv("ARR_SRANK")
+hw_srank = os.getenv("HW_SRANK")
+sb_srank = os.getenv("SB_SRANK")
+shb_srank = os.getenv("SHB_SRANK")
+ew_srank = os.getenv("EW_SRANK")
+c_arr_srank = os.getenv("C_ARR_SRANK")
+c_hw_srank = os.getenv("C_HW_SRANK")
+c_sb_srank = os.getenv("C_SB_SRNAK")
+c_shb_srank = os.getenv("C_SHB_SRANK")
+c_ew_srank = os.getenv("C_EW_SRANK")
+#zone_ids for each expansion
+arr = [134, 135, 137, 138, 139, 140, 141, 145, 146, 147, 148, 152, 153, 154, 155, 156, 180]
+hw = [397, 198, 399, 400, 401, 402]
+sb = [612, 613, 614, 620, 621, 622]
+shb = [813, 814, 815, 816, 817, 818]
+ew = [956, 957, 958, 959, 960, 961]
+
 message_ids = {}  # Dictionary to store message IDs
 
 
@@ -29,25 +46,57 @@ async def process_hunts(event):
         world_id = event.get("WorldId")
         zone_id = event.get("ZoneId")
         coords = event.get('Coords')
-        rawxcoord = coords.get('X')
-        rawycoord = coords.get('Y')
+        rawX = coords.get('X')
+        rawY = coords.get('Y')
         instance = event.get('InstanceId')
         players = event.get('Players')
         currenthp = event.get('CurrentHp')
         maxHP = event.get('MaxHp')
         actorID = event.get('ActorId')
+        
 
         #process raw data
-        flagXcoord = str((41 * ((rawxcoord + 1024) / 2048)) + 1)[:4]
-        flagYcoord = str((41 * ((rawycoord + 1024) / 2048)) + 1)[:4]
+        flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
+        flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
         worlds = huntDic['WorldDictionary']
-        worldName = worlds[str(world_id)]
+        cworlds = huntDic['CWorldDictionary']
+        EUworlds = huntDic['EUWorldDictionary']
+        worldName = EUworlds[str(world_id)]
         mobs = huntDic['MobDictionary']
         mobName = mobs[str(hunt_id)]
         zones = huntDic['zoneDictionary']
         zoneName = zones[str(zone_id)]
         HPpercent = (currenthp / maxHP) * 100
         trueTime = str(int(time.time()))
+        
+        
+        
+        if str(world_id) in worlds:
+            webhook_url = lightUrl
+            srank_role_id = light_role_id
+            if zone_id in arr:
+                srank_exp = arr_srank
+            elif zone_id in hw:
+                srank_exp = hw_srank
+            elif zone_id in sb:
+                srank_exp = sb_srank
+            elif zone_id in shb:
+                srank_exp = shb_srank
+            elif zone_id in ew:
+                srank_exp = ew_srank
+        if str(world_id) in cworlds:
+            webhook_url = chaosUrl
+            srank_role_id = chaos_role_id
+            if zone_id in arr:
+                srank_exp = c_arr_srank
+            elif zone_id in hw:
+                srank_exp = c_hw_srank
+            elif zone_id in sb:
+                srank_exp = c_sb_srank
+            elif zone_id in shb:
+                srank_exp = c_shb_srank
+            elif zone_id in ew:
+                srank_exp = c_ew_srank            
         
         if hunt_id and zoneName:    
             #make webhook embeds, pain
@@ -60,10 +109,10 @@ async def process_hunts(event):
             embed.add_field(name="HP %", value=f"{round(HPpercent, 1)}", inline=True)
             embed.add_field(name="Teleporter: ", value=f"/ctp {flagXcoord} {flagYcoord} : {zoneName[0]}", inline=False)
             embed.set_image(url=mapurl)
-            instancecontent = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{trueTime}:R>"
             embeddead=discord.Embed(title=f"~~{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}~~", color=0xe1e100)
             embeddead.add_field(name="~~Players:~~", value=f"{players}", inline=True)
             embeddead.add_field(name="~~HP %~~", value="~~0 %~~", inline=True)
+            webhookSrank = SyncWebhook.from_url(webhook_url)
             
 
             # Logic for sending, instance, and death checking
@@ -71,48 +120,52 @@ async def process_hunts(event):
                 if currenthp == 0:
                     webhookSrank.send(sRankDeadInstance)
                     deathtimer = str(int(time.time()))
+                    timestamp = str(int(time.time()))
                     message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                    editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                    editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
                     message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
                     deleteMapping(world_id, zone_id, instance)
+                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                        editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
                         embed.set_image(url=mapurl)
                         message = webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
                     else:
                         firsttime = str(int(time.time()))
-                        contentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                        contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.send(embed=embed, wait=True, content=contentstring)
                         message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
             else:
                 if currenthp == 0:
                     webhookSrank.send(sRankDead)
                     deathtimer = str(int(time.time()))
+                    timestamp = str(int(time.time()))
                     message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                    editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
+                    editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                     message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
                     #print(message_ids)
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
                     deleteMapping(world_id, zone_id, instance)
+                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
                         embed.set_image(url=mapurl)
-                        editcontentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
+                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
-                        #print(message.id)
+                        #print(message_ids)
 
                     else:
                         firsttime = str(int(time.time()))
-                        contentstring = f"<@&{srank_role_id}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
+                        contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                         message = webhookSrank.send(embed=embed, wait=True, content=contentstring)
                         message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
-                        #print(message.id)
+                        #print(message_ids)
 
             return 'Data processed and sent to webhook'
         
@@ -137,9 +190,10 @@ async def connect_websocket():
                     world_id = event.get("WorldId")
                     hunt_id = event.get("Id")
                     mobs = huntDic['MobDictionary']
+                    EUworlds = huntDic['EUWorldDictionary']
+
                     
-                    
-                    if event_type in filter_types and world_id in filter_worlds and str(hunt_id) in mobs:
+                    if event_type in filter_types and str(world_id) in EUworlds and str(hunt_id) in mobs:
                         await process_hunts(event)
                     
                     
@@ -202,6 +256,18 @@ def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     INSERT OR REPLACE INTO hunts (hunt_id, world_id, message_id, deathtimer, actorID)
     VALUES (?, ?, ?, ?, ?)
     ''', (hunt_id, world_id, message_id, deathtimer, actorID))
+    
+    conn.commit()
+    conn.close()
+    
+def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
+    conn = sqlite3.connect('hunts.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    INSERT OR REPLACE INTO mapping (hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp))
     
     conn.commit()
     conn.close()
