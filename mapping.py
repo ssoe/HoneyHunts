@@ -11,10 +11,7 @@ from discord.ext import commands
 import time
 import math
 from kmeans import get_adjusted_spawn_locations
-#39, 71, 80, 83, 85, 97, 400, 401 Chaos world IDs
-#33, 36, 42, 56, 66, 67, 402, 403 Light world IDs
 hw = [397, 398, 399, 400, 401, 402]
-filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
 mob_zone_map = {
 		"134": "Croque-mitaine",
 		"135": "Croakadile",
@@ -116,9 +113,10 @@ async def connect_websocket():
                     world_id = event.get("WorldId")
                     hunt_id = event.get("Id")
                     mobs = huntDic['ABDictionary']
+                    worlds = huntDic['EUWorldDictionary']
                     
                     
-                    if event_type in filter_types and world_id in filter_worlds and str(hunt_id) in mobs:
+                    if event_type in filter_types and str(world_id) in worlds and str(hunt_id) in mobs:
                         await mapping(event)
                     
                     
@@ -249,7 +247,7 @@ async def map(ctx, mobName: str, worldName: str, instance: int = 0):
     # Send the image
     with open(mapped_image_path, 'rb') as img:
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
-        await ctx.send(f"Map generated using {data_count} data points.")
+        #await ctx.send(f"Map generated using {data_count} data points.")
     # Delete the image after sending it
     os.remove(mapped_image_path)
 
