@@ -127,7 +127,7 @@ async def process_hunts(event):
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
                     deleteMapping(world_id, zone_id, instance)
-                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp)
+                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
@@ -151,7 +151,7 @@ async def process_hunts(event):
                     del message_ids[(hunt_id, world_id, actorID)]
                     save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
                     deleteMapping(world_id, zone_id, instance)
-                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp)
+                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                 else:
                     if (hunt_id, world_id, actorID) in message_ids:
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
