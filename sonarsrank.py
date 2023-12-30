@@ -26,7 +26,7 @@ shb_srank = os.getenv("SHB_SRANK")
 ew_srank = os.getenv("EW_SRANK")
 c_arr_srank = os.getenv("C_ARR_SRANK")
 c_hw_srank = os.getenv("C_HW_SRANK")
-c_sb_srank = os.getenv("C_SB_SRNAK")
+c_sb_srank = os.getenv("C_SB_SRANK")
 c_shb_srank = os.getenv("C_SHB_SRANK")
 c_ew_srank = os.getenv("C_EW_SRANK")
 #zone_ids for each expansion
@@ -70,7 +70,7 @@ async def process_hunts(event):
         trueTime = str(int(time.time()))
         
         
-        
+        #check data for datacenter and do role-ids for pings and webhook url to use based on that.
         if str(world_id) in worlds:
             webhook_url = lightUrl
             srank_role_id = light_role_id
