@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 import os
 load_dotenv()
 from discord import SyncWebhook
+import discord
 import requests
 import sqlite3
 import time
 
-sio = socketio.Client(logger=True, reconnection=True, reconnection_delay=5, reconnection_attempts=0)
+sio = socketio.Client(reconnection=True, reconnection_delay=5, reconnection_attempts=0)
 
 username = os.getenv('FALOOP_USERNAME')
 password = os.getenv('FALOOP_PASSWORD')
@@ -18,6 +19,16 @@ faloopWebhook = SyncWebhook.from_url(webhook_url)
 huntDic = requests.get(huntDict_url).json()
 srank_role_id = os.getenv("SRANK_ROLE_ID")
 csrank_role_id = os.getenv("CSRANK_ROLE_ID")
+arr_srank = os.getenv("ARR_SRANK")
+hw_srank = os.getenv("HW_SRANK")
+sb_srank = os.getenv("SB_SRANK")
+shb_srank = os.getenv("SHB_SRANK")
+ew_srank = os.getenv("EW_SRANK")
+c_arr_srank = os.getenv("C_ARR_SRANK")
+c_hw_srank = os.getenv("C_HW_SRANK")
+c_sb_srank = os.getenv("C_SB_SRNAK")
+c_shb_srank = os.getenv("C_SHB_SRANK")
+c_ew_srank = os.getenv("C_EW_SRANK")
 mobs = huntDic['MobDictionary']
 worlds = huntDic['EUWorldDictionary']
 lightWorlds = huntDic['WorldDictionary']
@@ -25,6 +36,12 @@ chaosWorlds = huntDic['CWorldDictionary']
 zones = huntDic['zoneDictionary']
 ss = [8815, 8916, 10615, 10616] #to filter out SS ranks and minions
 zoneIds = {} #dictionary for storing zone_id on spawn to use again on death because floop doesnt send zone_id on death?????????
+arr = [134, 135, 137, 138, 139, 140, 141, 145, 146, 147, 148, 152, 153, 154, 155, 156, 180]
+hw = [397, 198, 399, 400, 401, 402]
+sb = [612, 613, 614, 620, 621, 622]
+shb = [813, 814, 815, 816, 817, 818]
+ew = [956, 957, 958, 959, 960, 961]
+message_ids = {}
 
 @sio.event
 def connect():
@@ -108,29 +125,90 @@ def sendSpawn(data, hunt_id, world_id, zone_id, pos_id, instance):
 
     if str(world_id) in lightWorlds:
         srank_role = srank_role_id
+        if zone_id in arr:
+            srank_exp = arr_srank
+        elif zone_id in hw:
+            srank_exp = hw_srank
+        elif zone_id in sb:
+            srank_exp = sb_srank
+        elif zone_id in shb:
+            srank_exp = shb_srank
+        elif zone_id in ew:
+            srank_exp = ew_srank
     elif str(world_id) in chaosWorlds:
         srank_role = csrank_role_id
+        if zone_id in arr:
+            srank_exp = c_arr_srank
+        elif zone_id in hw:
+            srank_exp = c_hw_srank
+        elif zone_id in sb:
+            srank_exp = c_sb_srank
+        elif zone_id in shb:
+            srank_exp = c_shb_srank
+        elif zone_id in ew:
+            srank_exp = c_ew_srank  
+            
     if coords:
         x, y = [value.strip() for value in coords.split(',')]
         mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={x}&flagy={y}"
-        message = f"<@&{srank_role}> {mobName[0]}, on world: {worldName[0]}, coords: {coords}, zone: {zoneName[0]}, in instance: {instance}, Timestamp: <t:{timer}:R>, {mapurl}"
+        contentstring = f"<@&{srank_role}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in instance: {instance}, spawned <t:{timer}:R>"
         zoneIds[(hunt_id, world_id, instance)] = (zone_id)
-        faloopWebhook.send(message)
-        faloopWebhook.send(data)
+        embed=discord.Embed(title=f"{worldName[0]}  - {mobName[0]} - x {x} y {y}", color=0xe1e100)
+        embed.add_field(name="Zone: ", value=f"{zoneName[0]}", inline=False)
+        embed.add_field(name="Teleporter: ", value=f"/ctp {x} {y} : {zoneName[0]}", inline=False)
+        embed.set_image(url=mapurl)
+        message = faloopWebhook.send(embed=embed, wait=True, content=contentstring)
+        message_ids[(hunt_id, world_id, instance)] = (message.id, timer, x, y)
+        #faloopWebhook.send(data)
+        print(data)
         print("Message sent to Discord successfully.")
 
 def sendDeath(data, hunt_id, world_id, instance):
+    zone_id = zoneIds[(hunt_id, world_id, instance)]
+    message_id, timer, x, y = message_ids[(hunt_id, world_id, instance)]
+    zoneName = zones[str(zone_id)]
     worldName = worlds[str(world_id)]
     mobName = mobs[str(hunt_id)]
-    zone_id = zoneIds[(hunt_id, world_id, instance)]
+        
+    if str(world_id) in lightWorlds:
+        srank_role = srank_role_id
+        if zone_id in arr:
+            srank_exp = arr_srank
+        elif zone_id in hw:
+            srank_exp = hw_srank
+        elif zone_id in sb:
+            srank_exp = sb_srank
+        elif zone_id in shb:
+            srank_exp = shb_srank
+        elif zone_id in ew:
+            srank_exp = ew_srank
+    elif str(world_id) in chaosWorlds:
+        srank_role = csrank_role_id
+        if zone_id in arr:
+            srank_exp = c_arr_srank
+        elif zone_id in hw:
+            srank_exp = c_hw_srank
+        elif zone_id in sb:
+            srank_exp = c_sb_srank
+        elif zone_id in shb:
+            srank_exp = c_shb_srank
+        elif zone_id in ew:
+            srank_exp = c_ew_srank
+        
+    embeddead=discord.Embed(title=f"~~{worldName[0]}  - {mobName[0]} - x {x} y {y}~~", color=0xe1e100)
+    embeddead.add_field(name="~~Zone: ~~", value=f"~~{zoneName[0]}~~", inline=False)
+    embeddead.add_field(name="~~Teleporter: ~~", value=f"~~/ctp {x} {y} : {zoneName[0]}~~", inline=False)           
+    editcontentstring = f"~~<@&{srank_role}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{timer}:R>~~ **Killed**"
+    message = faloopWebhook.edit_message(message_id, embed=embeddead, content=editcontentstring)
     
-    message = f"Srank {mobName[0]} on {worldName[0]} in instance: {instance} died"
-    faloopWebhook.send(message)
+    sRankDead = f"Srank {mobName[0]} on {worldName[0]} in instance: {instance} died"
+    faloopWebhook.send(sRankDead)
     #faloopWebhook.send(data)
-    print("death sent to Discord successfully.")
+    #print("death sent to Discord successfully.")
     deleteMapping(world_id, zone_id, instance)
-    print("mapping yeeted")
+    #print("mapping yeeted")
     del zoneIds[(hunt_id, world_id, instance)]    
+    del message_ids[(hunt_id, world_id, instance)]
     
 def getCoords(pos_id, zone_id):  # sourcery skip: extract-method
     try:
