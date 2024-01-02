@@ -2,12 +2,13 @@ import asyncio
 import json
 import websockets
 from dotenv import load_dotenv
-from discord import SyncWebhook
+from discord import Webhook
 import discord
 import requests
 import os
 import time
 import sqlite3
+import aiohttp
 
 # Load environment variables
 load_dotenv()
@@ -40,144 +41,145 @@ message_ids = {}  # Dictionary to store message IDs
 
 
 async def process_hunts(event):
-    try:
-        #Get Raw data
-        hunt_id = event.get("Id")
-        world_id = event.get("WorldId")
-        zone_id = event.get("ZoneId")
-        coords = event.get('Coords')
-        rawX = coords.get('X')
-        rawY = coords.get('Y')
-        instance = event.get('InstanceId')
-        players = event.get('Players')
-        currenthp = event.get('CurrentHp')
-        maxHP = event.get('MaxHp')
-        actorID = event.get('ActorId')
-        
-
-        #process raw data
-        flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
-        flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
-        worlds = huntDic['WorldDictionary']
-        cworlds = huntDic['CWorldDictionary']
-        EUworlds = huntDic['EUWorldDictionary']
-        worldName = EUworlds[str(world_id)]
-        mobs = huntDic['MobDictionary']
-        mobName = mobs[str(hunt_id)]
-        zones = huntDic['zoneDictionary']
-        zoneName = zones[str(zone_id)]
-        HPpercent = (currenthp / maxHP) * 100
-        trueTime = str(int(time.time()))
-        
-        
-        #check data for datacenter and do role-ids for pings and webhook url to use based on that.
-        if str(world_id) in worlds:
-            webhook_url = lightUrl
-            srank_role_id = light_role_id
-            if zone_id in arr:
-                srank_exp = arr_srank
-            elif zone_id in hw:
-                srank_exp = hw_srank
-            elif zone_id in sb:
-                srank_exp = sb_srank
-            elif zone_id in shb:
-                srank_exp = shb_srank
-            elif zone_id in ew:
-                srank_exp = ew_srank
-        if str(world_id) in cworlds:
-            webhook_url = chaosUrl
-            srank_role_id = chaos_role_id
-            if zone_id in arr:
-                srank_exp = c_arr_srank
-            elif zone_id in hw:
-                srank_exp = c_hw_srank
-            elif zone_id in sb:
-                srank_exp = c_sb_srank
-            elif zone_id in shb:
-                srank_exp = c_shb_srank
-            elif zone_id in ew:
-                srank_exp = c_ew_srank            
-        
-        if hunt_id and zoneName:    
-            #make webhook embeds, pain
-            mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={flagXcoord}&flagy={flagYcoord}"
-            sRankDead = f"Srank on **[{worldName[0]}]** - **{mobName[0]}** - has died at <t:{trueTime}:f>"
-            sRankDeadInstance = f"Srank on **[{worldName[0]}]** - **{mobName[0]}** - Instance: {instance} has died at <t:{trueTime}:f>"
-            embed=discord.Embed(title=f"{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}", color=0xe1e100)
-            embed.add_field(name="Zone: ", value=f"{zoneName[0]}", inline=False)
-            embed.add_field(name="Players:", value=f"{players}", inline=True)
-            embed.add_field(name="HP %", value=f"{round(HPpercent, 1)}", inline=True)
-            embed.add_field(name="Teleporter: ", value=f"/ctp {flagXcoord} {flagYcoord} : {zoneName[0]}", inline=False)
-            embed.set_image(url=mapurl)
-            embeddead=discord.Embed(title=f"~~{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}~~", color=0xe1e100)
-            embeddead.add_field(name="~~Players:~~", value=f"{players}", inline=True)
-            embeddead.add_field(name="~~HP %~~", value="~~0 %~~", inline=True)
-            webhookSrank = SyncWebhook.from_url(webhook_url)
+    async with aiohttp.ClientSession() as session:
+        try:
+            #Get Raw data
+            hunt_id = event.get("Id")
+            world_id = event.get("WorldId")
+            zone_id = event.get("ZoneId")
+            coords = event.get('Coords')
+            rawX = coords.get('X')
+            rawY = coords.get('Y')
+            instance = event.get('InstanceId')
+            players = event.get('Players')
+            currenthp = event.get('CurrentHp')
+            maxHP = event.get('MaxHp')
+            actorID = event.get('ActorId')
             
 
-            # Logic for sending, instance, and death checking
-            if instance != 0:
-                if currenthp == 0:
-                    webhookSrank.send(sRankDeadInstance)
-                    deathtimer = str(int(time.time()))
-                    timestamp = str(int(time.time()))
-                    message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                    editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
-                    message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
-                    del message_ids[(hunt_id, world_id, actorID)]
-                    save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
-                    deleteMapping(world_id, zone_id, instance)
-                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
-                else:
-                    if (hunt_id, world_id, actorID) in message_ids:
+            #process raw data
+            flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
+            flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
+            worlds = huntDic['WorldDictionary']
+            cworlds = huntDic['CWorldDictionary']
+            EUworlds = huntDic['EUWorldDictionary']
+            worldName = EUworlds[str(world_id)]
+            mobs = huntDic['MobDictionary']
+            mobName = mobs[str(hunt_id)]
+            zones = huntDic['zoneDictionary']
+            zoneName = zones[str(zone_id)]
+            HPpercent = (currenthp / maxHP) * 100
+            trueTime = str(int(time.time()))
+            
+            
+            
+            if str(world_id) in worlds:
+                webhook_url = lightUrl
+                srank_role_id = light_role_id
+                if zone_id in arr:
+                    srank_exp = arr_srank
+                elif zone_id in hw:
+                    srank_exp = hw_srank
+                elif zone_id in sb:
+                    srank_exp = sb_srank
+                elif zone_id in shb:
+                    srank_exp = shb_srank
+                elif zone_id in ew:
+                    srank_exp = ew_srank
+            if str(world_id) in cworlds:
+                webhook_url = chaosUrl
+                srank_role_id = chaos_role_id
+                if zone_id in arr:
+                    srank_exp = c_arr_srank
+                elif zone_id in hw:
+                    srank_exp = c_hw_srank
+                elif zone_id in sb:
+                    srank_exp = c_sb_srank
+                elif zone_id in shb:
+                    srank_exp = c_shb_srank
+                elif zone_id in ew:
+                    srank_exp = c_ew_srank            
+            
+            if hunt_id and zoneName:    
+                #make webhook embeds, pain
+                mapurl = f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={flagXcoord}&flagy={flagYcoord}"
+                sRankDead = f"Srank on **[{worldName[0]}]** - **{mobName[0]}** - has died at <t:{trueTime}:f>"
+                sRankDeadInstance = f"Srank on **[{worldName[0]}]** - **{mobName[0]}** - Instance: {instance} has died at <t:{trueTime}:f>"
+                embed=discord.Embed(title=f"{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}", color=0xe1e100)
+                embed.add_field(name="Zone: ", value=f"{zoneName[0]}", inline=False)
+                embed.add_field(name="Players:", value=f"{players}", inline=True)
+                embed.add_field(name="HP %", value=f"{round(HPpercent, 1)}", inline=True)
+                embed.add_field(name="Teleporter: ", value=f"/ctp {flagXcoord} {flagYcoord} : {zoneName[0]}", inline=False)
+                embed.set_image(url=mapurl)
+                embeddead=discord.Embed(title=f"~~{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}~~", color=0xe1e100)
+                embeddead.add_field(name="~~Players:~~", value=f"{players}", inline=True)
+                embeddead.add_field(name="~~HP %~~", value="~~0 %~~", inline=True)
+                webhookSrank = Webhook.from_url(webhook_url, session=session)
+                
+
+                # Logic for sending, instance, and death checking
+                if instance != 0:
+                    if currenthp == 0:
+                        await webhookSrank.send(sRankDeadInstance)
+                        deathtimer = str(int(time.time()))
+                        timestamp = str(int(time.time()))
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
                         editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
-                        embed.set_image(url=mapurl)
-                        message = webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
+                        message = await webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
+                        del message_ids[(hunt_id, world_id, actorID)]
+                        save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
+                        deleteMapping(world_id, zone_id, instance)
+                        saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                     else:
-                        firsttime = str(int(time.time()))
-                        contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
-                        message = webhookSrank.send(embed=embed, wait=True, content=contentstring)
-                        message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
-            else:
-                if currenthp == 0:
-                    webhookSrank.send(sRankDead)
-                    deathtimer = str(int(time.time()))
-                    timestamp = str(int(time.time()))
-                    message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                    editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
-                    message = webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
-                    #print(message_ids)
-                    del message_ids[(hunt_id, world_id, actorID)]
-                    save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
-                    deleteMapping(world_id, zone_id, instance)
-                    saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+                        if (hunt_id, world_id, actorID) in message_ids:
+                            message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
+                            editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                            embed.set_image(url=mapurl)
+                            message = await webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
+                        else:
+                            firsttime = str(int(time.time()))
+                            contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                            message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
+                            message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
                 else:
-                    if (hunt_id, world_id, actorID) in message_ids:
+                    if currenthp == 0:
+                        await webhookSrank.send(sRankDead)
+                        deathtimer = str(int(time.time()))
+                        timestamp = str(int(time.time()))
                         message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                        embed.set_image(url=mapurl)
                         editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
-                        message = webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
+                        message = await webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
                         #print(message_ids)
-
+                        del message_ids[(hunt_id, world_id, actorID)]
+                        save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
+                        deleteMapping(world_id, zone_id, instance)
+                        saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                     else:
-                        firsttime = str(int(time.time()))
-                        contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
-                        message = webhookSrank.send(embed=embed, wait=True, content=contentstring)
-                        message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
-                        #print(message_ids)
+                        if (hunt_id, world_id, actorID) in message_ids:
+                            message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
+                            embed.set_image(url=mapurl)
+                            editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
+                            message = await webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
+                            #print(message_ids)
 
-            return 'Data processed and sent to webhook'
+                        else:
+                            firsttime = str(int(time.time()))
+                            contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
+                            message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
+                            message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
+                            #print(message_ids)
+
+                return 'Data processed and sent to webhook'
+            
+        except sqlite3.Error as e:
+            print(f"Database error {e}")
+            return f"failed to process data due to DB error: {e}"
         
-    except sqlite3.Error as e:
-        print(f"Database error {e}")
-        return f"failed to process data due to DB error: {e}"
-    
-    except Exception as e:
-        print(f"Uexpected error: {e}")
-        return f"failed to process data due to error {e}"
+        except Exception as e:
+            print(f"Uexpected error: {e}")
+            return f"failed to process data due to error {e}"
 
-   
+    
 
 async def connect_websocket():
     while True:  # This loop will keep trying to connect
