@@ -123,50 +123,57 @@ async def process_hunts(event):
                         await webhookSrank.send(sRankDeadInstance)
                         deathtimer = str(int(time.time()))
                         timestamp = str(int(time.time()))
-                        message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
+                        message_state = message_ids[(hunt_id, world_id, actorID)]
                         editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
-                        message = await webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
+                        message = await webhookSrank.edit_message(message_state.message_id, embed=embeddead, content=editcontentstring)
                         del message_ids[(hunt_id, world_id, actorID)]
-                        save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
-                        deleteMapping(world_id, zone_id, instance)
-                        saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+                        await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
+                        await deleteMapping(world_id, zone_id, instance)
+                        await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                     else:
                         if (hunt_id, world_id, actorID) in message_ids:
-                            message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                            editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
-                            embed.set_image(url=mapurl)
-                            message = await webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
+                            message_state = message_ids[(hunt_id, world_id, actorID)]
+                            if message_state.needs_update(currenthp, players):
+                                editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{message_state.firsttime}:R>"
+                                embed.set_image(url=message_state.map_url)
+                                message = await webhookSrank.edit_message(message_state.message_id, embed=embed, content=editcontentstring)
+                                message_state.update(currenthp, players)
                         else:
                             firsttime = str(int(time.time()))
                             contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
                             message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
-                            message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
+                            message_state = MessageState(message.id, firsttime, mapurl, currenthp, players)
+                            message_ids[(hunt_id, world_id, actorID)] = message_state
                 else:
                     if currenthp == 0:
                         await webhookSrank.send(sRankDead)
                         deathtimer = str(int(time.time()))
                         timestamp = str(int(time.time()))
-                        message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
-                        message = await webhookSrank.edit_message(message_id, embed=embeddead, content=editcontentstring)
+                        message_state = message_ids[(hunt_id, world_id, actorID)]
+                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{message_state.first_time}:R>"
+                        message = await webhookSrank.edit_message(message_state.message_id, embed=embeddead, content=editcontentstring)
                         #print(message_ids)
                         del message_ids[(hunt_id, world_id, actorID)]
-                        save_to_database(hunt_id, world_id, message_id, deathtimer, actorID)
-                        deleteMapping(world_id, zone_id, instance)
-                        saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+                        await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
+                        await deleteMapping(world_id, zone_id, instance)
+                        await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                     else:
                         if (hunt_id, world_id, actorID) in message_ids:
-                            message_id, firsttime, mapurl = message_ids[(hunt_id, world_id, actorID)]
-                            embed.set_image(url=mapurl)
-                            editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
-                            message = await webhookSrank.edit_message(message_id, embed=embed, content=editcontentstring)
-                            #print(message_ids)
+                            message_state = message_ids[(hunt_id, world_id, actorID)]
+                            if message_state.needs_update(currenthp, players):
+                                editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in spawned <t:{message_state.first_time}:R>"
+                                embed.set_image(url=message_state.map_url)
+                                message = await webhookSrank.edit_message(message_state.message_id, embed=embed, content=editcontentstring)
+                                message_state.update(currenthp, players)
+
+                                #print(message_ids)
 
                         else:
                             firsttime = str(int(time.time()))
                             contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                             message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
-                            message_ids[(hunt_id, world_id, actorID)] = (message.id, firsttime, mapurl)
+                            message_state = MessageState(message.id, firsttime, mapurl, currenthp, players)
+                            message_ids[(hunt_id, world_id, actorID)] = message_state
                             #print(message_ids)
 
                 return 'Data processed and sent to webhook'
@@ -179,6 +186,20 @@ async def process_hunts(event):
             print(f"Uexpected error: {e}")
             return f"failed to process data due to error {e}"
 
+class MessageState:
+    def __init__(self, message_id, first_time, map_url, current_hp, players):
+        self.message_id = message_id
+        self.first_time = first_time
+        self.map_url = map_url
+        self.current_hp = current_hp
+        self.players = players
+
+    def needs_update(self, new_hp, new_players):
+        return self.current_hp != new_hp or self.players != new_players
+
+    def update(self, new_hp, new_players):
+        self.current_hp = new_hp
+        self.players = new_players
     
 
 async def connect_websocket():
@@ -238,7 +259,7 @@ def setup_database():
 
 setup_database()
 
-def deleteMapping(world_id, zone_id, instance):
+async def deleteMapping(world_id, zone_id, instance):
     try:
         with sqlite3.connect('hunts.db') as conn:
             cursor = conn.cursor()
@@ -250,7 +271,7 @@ def deleteMapping(world_id, zone_id, instance):
         print(f"Database error: {e}")
         return f"Failed to delete entries due to DB error: {e}"
 
-def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
+async def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
@@ -262,7 +283,7 @@ def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     conn.commit()
     conn.close()
     
-def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
+async def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
@@ -274,7 +295,7 @@ def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord
     conn.commit()
     conn.close()
     
-def get_from_database(hunt_id, world_id):
+async def get_from_database(hunt_id, world_id):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
