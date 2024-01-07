@@ -2,14 +2,14 @@ import asyncio
 import json
 import websockets
 from dotenv import load_dotenv
-from discord import Webhook
+from discord import Webhook, SyncWebhook
 import discord
 import requests
 import os
 import time
 import sqlite3
 import aiohttp
-
+import traceback
 # Load environment variables
 load_dotenv()
 WEBSOCKET_URL = os.getenv("WEBSOCKET_URL")
@@ -30,16 +30,28 @@ c_hw_srank = os.getenv("C_HW_SRANK")
 c_sb_srank = os.getenv("C_SB_SRANK")
 c_shb_srank = os.getenv("C_SHB_SRANK")
 c_ew_srank = os.getenv("C_EW_SRANK")
+#dictionaries from json url
+worlds = huntDic['WorldDictionary']
+cworlds = huntDic['CWorldDictionary']
+EUworlds = huntDic['EUWorldDictionary']
+zones = huntDic['zoneDictionary']
+mobs = huntDic['MobDictionary']
 #zone_ids for each expansion
 arr = [134, 135, 137, 138, 139, 140, 141, 145, 146, 147, 148, 152, 153, 154, 155, 156, 180]
 hw = [397, 198, 399, 400, 401, 402]
 sb = [612, 613, 614, 620, 621, 622]
 shb = [813, 814, 815, 816, 817, 818]
 ew = [956, 957, 958, 959, 960, 961]
+#SS autismo
+ss = [8915, 10615]
+ss_minion = [8916, 10616]
+SS_ids = {} #storing minion spawns so I can check if already posted
+message_ids = {}  # Dictionary to store message IDs so I can edit posts with new information
+#Debug webhook, send errors to discord channel
+debug_url = os.getenv("DEBUG_URL")
+webhookDebug = SyncWebhook.from_url(debug_url)
 
-message_ids = {}  # Dictionary to store message IDs
-
-
+#make less ugly?
 async def process_hunts(event):
     async with aiohttp.ClientSession() as session:
         try:
@@ -60,19 +72,14 @@ async def process_hunts(event):
             #process raw data
             flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
             flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
-            worlds = huntDic['WorldDictionary']
-            cworlds = huntDic['CWorldDictionary']
-            EUworlds = huntDic['EUWorldDictionary']
             worldName = EUworlds[str(world_id)]
-            mobs = huntDic['MobDictionary']
             mobName = mobs[str(hunt_id)]
-            zones = huntDic['zoneDictionary']
             zoneName = zones[str(zone_id)]
             HPpercent = (currenthp / maxHP) * 100
             trueTime = str(int(time.time()))
             
             
-            
+            #assign urls and role ping IDs
             if str(world_id) in worlds:
                 webhook_url = lightUrl
                 srank_role_id = light_role_id
@@ -116,21 +123,28 @@ async def process_hunts(event):
                 embeddead.add_field(name="~~HP %~~", value="~~0 %~~", inline=True)
                 webhookSrank = Webhook.from_url(webhook_url, session=session)
                 
-
-                # Logic for sending, instance, and death checking
-                if instance != 0:
+                
+                #if not in instance
+                if instance == 0:
+                    #check if dead
                     if currenthp == 0:
-                        await webhookSrank.send(sRankDeadInstance)
+                        await webhookSrank.send(sRankDead)
                         deathtimer = str(int(time.time()))
                         timestamp = str(int(time.time()))
                         message_state = message_ids[(hunt_id, world_id, actorID)]
-                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{message_state.firsttime}:R>"
                         message = await webhookSrank.edit_message(message_state.message_id, embed=embeddead, content=editcontentstring)
-                        del message_ids[(hunt_id, world_id, actorID)]
-                        await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
-                        await deleteMapping(world_id, zone_id, instance)
-                        await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
-                    else:
+                        if hunt_id in ss: #if its a ss, delete from ss_ids.
+                            del SS_ids[(world_id, zone_id, instance)]
+                            del message_ids[(hunt_id, world_id, actorID)]
+                            return 'SS event over'
+                        else:#delete from message ids and save to database; deathtimer, yeet old mapping, save srank spot to new mapping
+                            del message_ids[(hunt_id, world_id, actorID)]
+                            await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
+                            await deleteMapping(world_id, zone_id, instance)
+                            await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+                    else: #if alive check if already posted, if not then post.
+                        #check if mob already in message_ids, if it is then update the post
                         if (hunt_id, world_id, actorID) in message_ids:
                             message_state = message_ids[(hunt_id, world_id, actorID)]
                             if message_state.needs_update(currenthp, players):
@@ -138,58 +152,127 @@ async def process_hunts(event):
                                 embed.set_image(url=message_state.map_url)
                                 message = await webhookSrank.edit_message(message_state.message_id, embed=embed, content=editcontentstring)
                                 message_state.update(currenthp, players)
-                        else:
-                            firsttime = str(int(time.time()))
-                            contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
-                            message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
-                            message_state = MessageState(message.id, firsttime, mapurl, currenthp, players)
-                            message_ids[(hunt_id, world_id, actorID)] = message_state
-                else:
-                    if currenthp == 0:
-                        await webhookSrank.send(sRankDead)
-                        deathtimer = str(int(time.time()))
-                        timestamp = str(int(time.time()))
-                        message_state = message_ids[(hunt_id, world_id, actorID)]
-                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{message_state.first_time}:R>"
-                        message = await webhookSrank.edit_message(message_state.message_id, embed=embeddead, content=editcontentstring)
-                        #print(message_ids)
-                        del message_ids[(hunt_id, world_id, actorID)]
-                        await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
-                        await deleteMapping(world_id, zone_id, instance)
-                        await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
-                    else:
-                        if (hunt_id, world_id, actorID) in message_ids:
-                            message_state = message_ids[(hunt_id, world_id, actorID)]
-                            if message_state.needs_update(currenthp, players):
-                                editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in spawned <t:{message_state.first_time}:R>"
-                                embed.set_image(url=message_state.map_url)
-                                message = await webhookSrank.edit_message(message_state.message_id, embed=embed, content=editcontentstring)
-                                message_state.update(currenthp, players)
-
-                                #print(message_ids)
-
-                        else:
+                        else: #initial post
                             firsttime = str(int(time.time()))
                             contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** spawned <t:{firsttime}:R>"
                             message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
                             message_state = MessageState(message.id, firsttime, mapurl, currenthp, players)
                             message_ids[(hunt_id, world_id, actorID)] = message_state
-                            #print(message_ids)
+                else:#if in instance
+                    #check if dead
+                    if currenthp == 0:
+                        await webhookSrank.send(sRankDeadInstance)
+                        deathtimer = str(int(time.time()))
+                        timestamp = str(int(time.time()))
+                        message_state = message_ids[(hunt_id, world_id, actorID)]
+                        editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{message_state.firsttime}:R>"
+                        message = await webhookSrank.edit_message(message_state.message_id, embed=embeddead, content=editcontentstring)
+                        if hunt_id in ss: #if its a ss, delete from ss_ids
+                            del SS_ids[(world_id, zone_id, instance)]
+                            del message_ids[(hunt_id, world_id, actorID)]
+                            return 'SS event over'
+                        else:#delete from message ids and save to database; deathtimer, yeet old mapping, save srank spot to new mapping
+                            del message_ids[(hunt_id, world_id, actorID)]
+                            await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
+                            await deleteMapping(world_id, zone_id, instance)
+                            await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+                    else: #if alive check if already posted, if not then post.
+                        #check if mob already in message_ids, if it is then update the post
+                        if (hunt_id, world_id, actorID) in message_ids:
+                            message_state = message_ids[(hunt_id, world_id, actorID)]
+                            if message_state.needs_update(currenthp, players):
+                                editcontentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{message_state.firsttime}:R>"
+                                embed.set_image(url=message_state.map_url)
+                                embed.add_field(name="Instance: ", value=f"{instance}", inline=True)
+                                message = await webhookSrank.edit_message(message_state.message_id, embed=embed, content=editcontentstring)
+                                message_state.update(currenthp, players)
+                        else: #if not in message_ids, make a new post and save to message_ids/message_state
+                            firsttime = str(int(time.time()))
+                            contentstring = f"<@&{srank_role_id}> <@&{srank_exp}> on **[{worldName[0]}]** - **{mobName[0]}** in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                            embed.add_field(name="Instance: ", value=f"{instance}", inline=True)
+                            message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
+                            message_state = MessageState(message.id, firsttime, mapurl, currenthp, players)
+                            message_ids[(hunt_id, world_id, actorID)] = message_state
 
-                return 'Data processed and sent to webhook'
+
+            return 'Data processed and sent to webhook'
             
         except sqlite3.Error as e:
             print(f"Database error {e}")
+            webhookDebug.send(traceback.format_exc())
             return f"failed to process data due to DB error: {e}"
         
         except Exception as e:
             print(f"Uexpected error: {e}")
+            webhookDebug.send(traceback.format_exc())
             return f"failed to process data due to error {e}"
 
+#make less ugly?
+async def process_ss(event):
+    async with aiohttp.ClientSession() as session2:
+        try:
+            #get raw data from event
+            zone_id = event.get("ZoneId")
+            world_id = event.get("WorldId")
+            coords = event.get('Coords')
+            rawX = coords.get('X')
+            rawY = coords.get('Y')
+            instance = event.get('InstanceId')
+            currenthp = event.get('CurrentHp')
+            hunt_id = event.get("Id")
+            #process raw data 
+            flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
+            flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
+            trueTime = str(int(time.time()))
+            zoneName = zones[str(zone_id)]
+            worldName = EUworlds[str(world_id)]
+            mapurl = f"https://assets.ffxivsonar.com/ssminions/{zone_id}.jpg"
+            ssRankDead = f"SS Minion on **[{worldName[0]}]** - **{zoneName[0]}** - **x** **{flagXcoord}** **y** **{flagYcoord}** -  has died at <t:{trueTime}:f>"
+            ssRankDeadInstance = f"SS Minion on **[{worldName[0]}]** - **{zoneName[0]}** - **x** **{flagXcoord}** **y** **{flagYcoord}** in  Instance: {instance} has died at <t:{trueTime}:f>"
+            embed=discord.Embed(title=f" SS MINIONS - **[{worldName[0]}]**  - **{zoneName[0]}**", color=0xe1e100)
+            embed.set_image(url=mapurl)
+            #Determine which webhook url to use
+            if str(world_id) in worlds:
+                webhook_url = lightUrl
+            elif str(world_id) in cworlds:
+                webhook_url =  chaosUrl 
+            webhookSrank = Webhook.from_url(webhook_url, session=session2)            
+
+            #if not in instance
+            if instance == 0:
+                #check if dead
+                if currenthp == 0:
+                    await webhookSrank.send(ssRankDead)
+                #check if already posted, if not then post
+                else:
+                    if (world_id, zone_id, instance) in SS_ids:
+                        return 'ss already posted'
+                    firsttime = str(int(time.time()))
+                    contentstring = f"SS Minion on **[{worldName[0]}]** - **{zoneName[0]}** - spawned <t:{firsttime}:R>"
+                    message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
+                    SS_ids[(world_id, zone_id, instance)] = (hunt_id, message.id, firsttime, mapurl)
+            #else in instance and dead
+            elif currenthp == 0:
+                await webhookSrank.send(ssRankDeadInstance)
+            #else in instance, check if already posted, if not then post
+            else:
+                if (world_id, zone_id, instance) in SS_ids:
+                    return 'ss already posted'
+                firsttime = str(int(time.time()))
+                contentstring = f"SS Minion on **{worldName[0]}** - **{zoneName[0]}** - in **Instance: {instance}** spawned <t:{firsttime}:R>"
+                message = await webhookSrank.send(embed=embed, wait=True, content=contentstring)
+                SS_ids[(world_id, zone_id, instance)] = (hunt_id, message.id, firsttime, mapurl)
+            return 'Data processed and sent to webhook'
+        
+        except Exception as e:
+            webhookDebug.send(traceback.format_exc())
+            return f"failed to process data due to error {e}"
+        
+#class for storing and checking variables for changes. I implemented this to avoid needless edits to avoid rate limiting.
 class MessageState:
-    def __init__(self, message_id, first_time, map_url, current_hp, players):
+    def __init__(self, message_id, firsttime, map_url, current_hp, players):
         self.message_id = message_id
-        self.first_time = first_time
+        self.firsttime = firsttime
         self.map_url = map_url
         self.current_hp = current_hp
         self.players = players
@@ -214,26 +297,35 @@ async def connect_websocket():
                     hunt_id = event.get("Id")
                     mobs = huntDic['MobDictionary']
                     EUworlds = huntDic['EUWorldDictionary']
-
-                    
-                    if event_type in filter_types and str(world_id) in EUworlds and str(hunt_id) in mobs:
+                    #if event is SS minion, then send to process_ss
+                    if event_type in filter_types and hunt_id in ss_minion and str(world_id) in EUworlds:
+                        await process_ss(event)
+                    #if event is normal S-rank, then send to process_hunts
+                    elif event_type in filter_types and str(world_id) in EUworlds and str(hunt_id) in mobs:
                         await process_hunts(event)
                     
                     
         except websockets.exceptions.ConnectionClosedError as e:
             print(e)
             print("WebSocket connection closed unexpectedly. Reconnecting...")
+            webhookDebug.send(traceback.format_exc())
             await asyncio.sleep(5)  
             continue
 
         except websockets.exceptions.ConnectionClosed as e:
             print(e)
-            await websocket.close()
+            webhookDebug.send(traceback.format_exc())
+            websocket.close()
             await asyncio.sleep(5)
             continue
 
         except Exception as e:
             print(f"Unexpected error with WebSocket: {e}")
+            print("exc print")
+            traceback.print_exc()
+            webhookDebug.send(traceback.format_exc())
+            print("stack print")
+            traceback.print_stack()
             await asyncio.sleep(5)  
             continue
 
@@ -241,6 +333,7 @@ async def connect_websocket():
 async def main():
     await connect_websocket()
     
+#database for storing S rank deaths    
 def setup_database():
     with sqlite3.connect('hunts.db') as conn:
         cursor = conn.cursor()
@@ -259,6 +352,7 @@ def setup_database():
 
 setup_database()
 
+#Delete old mapping when S rank dies
 async def deleteMapping(world_id, zone_id, instance):
     try:
         with sqlite3.connect('hunts.db') as conn:
@@ -270,7 +364,7 @@ async def deleteMapping(world_id, zone_id, instance):
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return f"Failed to delete entries due to DB error: {e}"
-
+#save S rank death to database
 async def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
@@ -282,7 +376,7 @@ async def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
     
     conn.commit()
     conn.close()
-    
+#S ranks will never spawn in the same place twice, so using the S rank death location as mapping is a free map point.    
 async def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
@@ -294,15 +388,5 @@ async def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flag
     
     conn.commit()
     conn.close()
-    
-async def get_from_database(hunt_id, world_id):
-    conn = sqlite3.connect('hunts.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('SELECT message_id, deathtimer FROM hunts WHERE hunt_id = ? AND world_id = ?', (hunt_id, world_id))
-    result = cursor.fetchone()
-    
-    conn.close()
-    return result
 
 asyncio.run(main())
