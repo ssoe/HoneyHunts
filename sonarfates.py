@@ -81,10 +81,10 @@ async def process_fate_orghana(event):
     # Calculate the remaining time in seconds
     remaining_time = max(0, duration - elapsed_time)
     
-    if world_id in cworlds:
+    if str(world_id) in cworlds:
         orghana_role_id = c_oid
         webhook_url = chaoswebhook
-    elif world_id in lworlds:
+    elif str(world_id) in lworlds:
         orghana_role_id = l_oid
         webhook_url = lightwebhook
 
@@ -155,10 +155,10 @@ async def process_fate_senmurv(event):
     status = huntDic['FateStatus']
     statusName = status[str(statusid)]
     
-    if world_id in cworlds:
+    if str(world_id) in cworlds:
         senmurv_role_id = c_sid
         webhook_url = chaoswebhook
-    elif world_id in lworlds:
+    elif str(world_id) in lworlds:
         senmurv_role_id = l_sid
         webhook_url = lightwebhook
             
@@ -232,10 +232,10 @@ async def process_fate_minhocao(event):
     status = huntDic['FateStatus']
     statusName = status[str(statusid)]
     
-    if world_id in cworlds:
+    if str(world_id) in cworlds:
         minhocao_role_id = c_mid
         webhook_url = chaoswebhook
-    elif world_id in lworlds:
+    elif str(world_id) in lworlds:
         minhocao_role_id = l_mid
         webhook_url = lightwebhook 
 
@@ -292,7 +292,7 @@ async def filter_events():
                     world_id = event.get("WorldId")
                     status_id = event.get("Status")
                     EUworlds = huntDic['EUWorldDictionary']
-                    if event_type in filter_types and fate_id in [1259, 831, 556] and world_id in EUworlds:
+                    if event_type in filter_types and fate_id in [1259, 831, 556] and str(world_id) in EUworlds:
                         print(f"Received event: {event}")
                         print("Now checking database for dead hunts...")
                     # Map the fate_id to the corresponding hunt_id
