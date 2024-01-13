@@ -14,18 +14,21 @@ import sqlite3
 #hunt_id 5986 is orghana
 #hunt_id 4375 is senmurv
 #hunt_id 2961 is minhocao
-
-filter_types = ["Fate"]
-filter_worlds = [33, 36, 42, 56, 66, 67, 402, 403]
 load_dotenv()
+filter_types = ["Fate"]
 huntDict_url = os.getenv("HUNT_DICT_URL")
-webhook_url = os.getenv("WEBHOOK_FATE_URL")
-srankfate_role_id = os.getenv("SRANKFATE_ROLE_ID")
-senmurv_role_id = os.getenv("SENMURV_ROLE")
-orghana_role_id = os.getenv("ORGHANA_ROLE")
-minhocao_role_id = os.getenv("MINHOCAO_ROLE")
 huntDic = requests.get(huntDict_url).json()
-webhookFateSrank = SyncWebhook.from_url(webhook_url)
+huntDict_url = os.getenv("HUNT_DICT_URL")
+lightwebhook = os.getenv("WEBHOOK_FATE_URL")
+chaoswebhook = os.getenv("C_WEBHOOK_FATE_URL")
+srankfate_role_id = os.getenv("SRANKFATE_ROLE_ID")
+l_sid = os.getenv("SENMURV_ROLE")
+l_oid = os.getenv("ORGHANA_ROLE")
+l_mid = os.getenv("MINHOCAO_ROLE")
+c_oid = os.getenv("C_ORGHANA_ROLE")
+c_sid = os.getenv("C_SENMURV_ROLE")
+c_mid = os.getenv("C_MINHOCAO_ROLE")
+
 message_ids = {}  # Dictionary to store message IDs
 WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
 fate_to_hunt_map = {
@@ -56,14 +59,17 @@ async def process_fate_orghana(event):
     #process raw data
     flagXcoord = str((41 * ((rawxcoord + 1024) / 2048)) + 1)[:4]
     flagYcoord = str((41 * ((rawycoord + 1024) / 2048)) + 1)[:4]
-    worlds = huntDic['WorldDictionary']
-    worldName = worlds[str(world_id)]
+    EUworlds = huntDic['EUWorldDictionary']
+    worldName = EUworlds[str(world_id)]
+    lworlds = huntDic['WorldDictionary']
+    cworlds = huntDic['CWorldDictionary']
     fates = huntDic['FateDictionary']
     fateName = fates[str(fate_id)]
     zones = huntDic['zoneDictionary']
     zoneName = zones[str(zone_id)]
     status = huntDic['FateStatus']
     statusName = status[str(statusid)]
+
 
     start_time = event.get("StartTime") / 1000  # Convert milliseconds to seconds
     duration = event.get("Duration") / 1000  # Convert milliseconds to seconds
@@ -74,16 +80,16 @@ async def process_fate_orghana(event):
 
     # Calculate the remaining time in seconds
     remaining_time = max(0, duration - elapsed_time)
+    
+    if world_id in cworlds:
+        orghana_role_id = c_oid
+        webhook_url = chaoswebhook
+    elif world_id in lworlds:
+        orghana_role_id = l_oid
+        webhook_url = lightwebhook
 
-    # Format the remaining time and duration as minutes and seconds
-    remaining_minutes = int(remaining_time // 60)
-    remaining_seconds = int(remaining_time % 60)
-    duration_minutes = int(duration // 60)
-    duration_seconds = int(duration % 60)
-
-    # Create the timer string in the format "01:00 / 15:00"
-    timer_string = f"{remaining_minutes:02d}:{remaining_seconds:02d} / {duration_minutes:02d}:{duration_seconds:02d}"
-    #make discord embed        
+    webhookFateSrank = SyncWebhook.from_url(webhook_url)
+    #make discord embed
     if fate_id and zoneName:
         print('')
         print(f"Filtered event: {fateName} {worldName} Fate posted to Discord")
@@ -93,6 +99,14 @@ async def process_fate_orghana(event):
         embed.add_field(name="Progress:", value=f"{progress} %", inline=True)
         embed.add_field(name="Zone: ", value=f"{zoneName[0]}", inline=True)
         embed.add_field(name=f"Status {statusid}", value=f"{statusName[0]}", inline=False)
+        # Format the remaining time and duration as minutes and seconds
+        remaining_minutes = int(remaining_time // 60)
+        remaining_seconds = int(remaining_time % 60)
+        duration_minutes = int(duration // 60)
+        duration_seconds = int(duration % 60)
+
+        # Create the timer string in the format "01:00 / 15:00"
+        timer_string = f"{remaining_minutes:02d}:{remaining_seconds:02d} / {duration_minutes:02d}:{duration_seconds:02d}"
         embed.add_field(name="Timer", value=timer_string, inline=False)
         embed.set_image(url=f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={flagXcoord}&flagy={flagYcoord}&fate=true")
         contentstring = f"<@&{orghana_role_id}> Orghana Fate on {worldName[0]}"
@@ -106,9 +120,9 @@ async def process_fate_orghana(event):
             insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message_ids[(fate_id, world_id)] = (message.id, time.time())
         print(message.id)
-        
-        #previous_message_id = message.id
-        #print("message ID: " + previous_message_id)
+            
+            #previous_message_id = message.id
+            #print("message ID: " + previous_message_id)
     else:
         print(f"Filtered event: ID={fate_id}, WorldID={world_id}, ZoneID={zone_id}")
         
@@ -126,31 +140,33 @@ async def process_fate_senmurv(event):
     statusid = event.get('Status')
     start_time = event.get("StartTime") / 1000  # Convert milliseconds to seconds
     duration = event.get("Duration") / 1000  # Convert milliseconds to seconds
-    
+
     #process raw data
     flagXcoord = str((41 * ((rawxcoord + 1024) / 2048)) + 1)[:4]
     flagYcoord = str((41 * ((rawycoord + 1024) / 2048)) + 1)[:4]
-    worlds = huntDic['WorldDictionary']
-    worldName = worlds[str(world_id)]
+    EUworlds = huntDic['EUWorldDictionary']
+    worldName = EUworlds[str(world_id)]
+    lworlds = huntDic['WorldDictionary']
+    cworlds = huntDic['CWorldDictionary']
     fates = huntDic['FateDictionary']
     fateName = fates[str(fate_id)]
     zones = huntDic['zoneDictionary']
     zoneName = zones[str(zone_id)]
     status = huntDic['FateStatus']
     statusName = status[str(statusid)]
-
+    
+    if world_id in cworlds:
+        senmurv_role_id = c_sid
+        webhook_url = chaoswebhook
+    elif world_id in lworlds:
+        senmurv_role_id = l_sid
+        webhook_url = lightwebhook
+            
+    webhookFateSrank = SyncWebhook.from_url(webhook_url)
     # Calculate the elapsed time since the fate started
     current_time = datetime.now().timestamp()
     elapsed_time = current_time - start_time
     remaining_time = max(0, duration - elapsed_time)
-    remaining_minutes = int(remaining_time // 60)
-    remaining_seconds = int(remaining_time % 60)
-    duration_minutes = int(duration // 60)
-    duration_seconds = int(duration % 60)
-
-    # Create the timer string in the format "01:00 / 15:00"
-    timer_string = f"{remaining_minutes:02d}:{remaining_seconds:02d} / {duration_minutes:02d}:{duration_seconds:02d}"
-  
     if fate_id and zoneName:
         print('')
         print(f"Filtered event: {fateName} {worldName} Fate posted to Discord")
@@ -160,6 +176,16 @@ async def process_fate_senmurv(event):
         embed.add_field(name="Progress:", value=f"{progress} %", inline=True)
         embed.add_field(name="Zone: ", value=f"{zoneName[0]}", inline=True)
         embed.add_field(name=f"Status {statusid}", value=f"{statusName[0]}", inline=False)
+        remaining_minutes = int(remaining_time // 60)
+        remaining_seconds = int(remaining_time % 60)
+        duration_minutes = int(duration // 60)
+        duration_seconds = int(duration % 60)
+        
+        
+
+        # Create the timer string in the format "01:00 / 15:00"
+        timer_string = f"{remaining_minutes:02d}:{remaining_seconds:02d} / {duration_minutes:02d}:{duration_seconds:02d}"
+
         embed.add_field(name="Timer", value=timer_string, inline=False)
         embed.set_image(url=f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={flagXcoord}&flagy={flagYcoord}&fate=true")
         contentstring = f"<@&{senmurv_role_id}> Senmurv Fate on {worldName[0]}"
@@ -173,11 +199,10 @@ async def process_fate_senmurv(event):
             insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message_ids[(fate_id, world_id)] = (message.id, time.time())
         print(message.id)
-        #previous_message_id = message.id
-        #print("message ID: " + previous_message_id)
+            #previous_message_id = message.id
+            #print("message ID: " + previous_message_id)
     else:
         print(f"Filtered event: ID={fate_id}, WorldID={world_id}, {fateName}, {worldName}")
-    pass
 
 
 async def process_fate_minhocao(event):
@@ -192,31 +217,33 @@ async def process_fate_minhocao(event):
     statusid = event.get('Status')
     start_time = event.get("StartTime") / 1000  # Convert milliseconds to seconds
     duration = event.get("Duration") / 1000  # Convert milliseconds to seconds
-    
+
     #process raw data
     flagXcoord = str((41 * ((rawxcoord + 1024) / 2048)) + 1)[:4]
     flagYcoord = str((41 * ((rawycoord + 1024) / 2048)) + 1)[:4]
-    worlds = huntDic['WorldDictionary']
-    worldName = worlds[str(world_id)]
+    EUworlds = huntDic['EUWorldDictionary']
+    worldName = EUworlds[str(world_id)]
+    lworlds = huntDic['WorldDictionary']
+    cworlds = huntDic['CWorldDictionary']
     fates = huntDic['FateDictionary']
     fateName = fates[str(fate_id)]
     zones = huntDic['zoneDictionary']
     zoneName = zones[str(zone_id)]
     status = huntDic['FateStatus']
     statusName = status[str(statusid)]
+    
+    if world_id in cworlds:
+        minhocao_role_id = c_mid
+        webhook_url = chaoswebhook
+    elif world_id in lworlds:
+        minhocao_role_id = l_mid
+        webhook_url = lightwebhook 
 
+    webhookFateSrank = SyncWebhook.from_url(webhook_url)       
     # Calculate the elapsed time since the fate started
     current_time = datetime.now().timestamp()
     elapsed_time = current_time - start_time
     remaining_time = max(0, duration - elapsed_time)
-    remaining_minutes = int(remaining_time // 60)
-    remaining_seconds = int(remaining_time % 60)
-    duration_minutes = int(duration // 60)
-    duration_seconds = int(duration % 60)
-
-    # Create the timer string in the format "01:00 / 15:00"
-    timer_string = f"{remaining_minutes:02d}:{remaining_seconds:02d} / {duration_minutes:02d}:{duration_seconds:02d}"
-   
     if fate_id and zoneName:
         print('')
         print(f"Filtered event: {fateName} {worldName} Fate posted to Discord")
@@ -226,6 +253,14 @@ async def process_fate_minhocao(event):
         embed.add_field(name="Progress:", value=f"{progress} %", inline=True)
         embed.add_field(name="Zone: ", value=f"{zoneName[0]}", inline=True)
         embed.add_field(name=f"Status {statusid}", value=f"{statusName[0]}", inline=False)
+        remaining_minutes = int(remaining_time // 60)
+        remaining_seconds = int(remaining_time % 60)
+        duration_minutes = int(duration // 60)
+        duration_seconds = int(duration % 60)
+
+        # Create the timer string in the format "01:00 / 15:00"
+        timer_string = f"{remaining_minutes:02d}:{remaining_seconds:02d} / {duration_minutes:02d}:{duration_seconds:02d}"
+
         embed.add_field(name="Timer", value=timer_string, inline=False)
         embed.set_image(url=f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={flagXcoord}&flagy={flagYcoord}&fate=true")
         contentstring = f"<@&{minhocao_role_id}> Minhocao Fate on {worldName[0]}"
@@ -239,11 +274,8 @@ async def process_fate_minhocao(event):
             insert_status_to_fates_db(fate_id, world_id, statusid, start_time)
             message_ids[(fate_id, world_id)] = (message.id, time.time())
         print(message.id)
-##        previous_message_id = message.id
-##        print("message ID: " + previous_message_id)
     else:
         print(f"Filtered event: ID={fate_id}, WorldID={world_id}, {fateName}, {worldName}")
-    pass
 
 
 async def filter_events():
@@ -259,15 +291,14 @@ async def filter_events():
                     fate_id = event.get("Id")
                     world_id = event.get("WorldId")
                     status_id = event.get("Status")
-                    if event_type in filter_types and fate_id in [1259, 831, 556] and world_id in filter_worlds:
+                    EUworlds = huntDic['EUWorldDictionary']
+                    if event_type in filter_types and fate_id in [1259, 831, 556] and world_id in EUworlds:
                         print(f"Received event: {event}")
                         print("Now checking database for dead hunts...")
                     # Map the fate_id to the corresponding hunt_id
                         hunt_id = fate_to_hunt_map.get(fate_id)
 
-                        # Check the database for the corresponding hunt_id and world_id
-                        db_result = get_from_database(hunt_id, world_id)
-                        if db_result:
+                        if db_result := get_from_database(hunt_id, world_id):
                             deathtimer = db_result[0]
                             current_time = int(time.time())
                             cooldown_time = hunt_to_cooldown_map.get(hunt_id)
@@ -278,7 +309,7 @@ async def filter_events():
                                 # If the deathtimer is not more than 84 hours old, ignore the event
                                 print("oopsiewoopsie, the swanky window is closed! Ignoring event")
                                 continue
-                                
+
 
                         # Process the event if there's no matching entry in the database or if the entry was deleted
                         if fate_id == 1259:
@@ -292,12 +323,12 @@ async def filter_events():
                             # or if the message ID is older than the maximum age
                         if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
                             del message_ids[(fate_id, world_id)]
-                                
+
         except sqlite3.Error as e:
             print(f"Database error {e}")
             await asyncio.sleep(5)
             continue
-        
+
         except websockets.exceptions.ConnectionClosedError as e:
             print(e)
             print("WebSocket connection closed unexpectedly. Reconnecting...")
