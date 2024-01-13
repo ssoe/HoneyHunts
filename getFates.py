@@ -19,7 +19,15 @@ world_dict = {
     "66": "Odin",
     "67": "Shiva",
     "402": "Alpha",
-    "403": "Raiden"
+    "403": "Raiden",
+    "39": "Omega",
+    "71": "Moogle",
+    "80": "Cerberus",
+    "83": "Louisoix",
+    "85": "Spriggan",
+    "97": "Ragnarok",
+    "400": "Sagittarius",
+    "401": "Phantom"
 }
 
 status_dict = {
