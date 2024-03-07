@@ -118,7 +118,7 @@ async def process_hunts(event):
                 embed.add_field(name="HP %", value=f"{round(HPpercent, 1)}", inline=True)
                 embed.add_field(name="Teleporter: ", value=f"/ctp {flagXcoord} {flagYcoord} : {zoneName[0]}", inline=False)
                 embed.set_image(url=mapurl)
-                embeddead=discord.Embed(title=f"~~{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}~~", color=0xe1e100)
+                embeddead=discord.Embed(title=f"~~{worldName[0]}  - {mobName[0]} - x {flagXcoord} y {flagYcoord}~~", color=0xF04C5C)
                 embeddead.add_field(name="~~Players:~~", value=f"{players}", inline=True)
                 embeddead.add_field(name="~~HP %~~", value="~~0 %~~", inline=True)
                 webhookSrank = Webhook.from_url(webhook_url, session=session)
