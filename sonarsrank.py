@@ -139,7 +139,7 @@ async def process_hunts(event):
                             del message_ids[(hunt_id, world_id, actorID)]
                             return 'SS event over'
                         else:#delete from message ids and save to database; deathtimer, yeet old mapping, save srank spot to new mapping
-                            del message_ids[(hunt_id, world_id, actorID)]
+                            #del message_ids[(hunt_id, world_id, actorID)]
                             await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
                             await deleteMapping(world_id, zone_id, instance)
                             await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
@@ -172,7 +172,7 @@ async def process_hunts(event):
                             del message_ids[(hunt_id, world_id, actorID)]
                             return 'SS event over'
                         else:#delete from message ids and save to database; deathtimer, yeet old mapping, save srank spot to new mapping
-                            del message_ids[(hunt_id, world_id, actorID)]
+                            #del message_ids[(hunt_id, world_id, actorID)]
                             await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
                             await deleteMapping(world_id, zone_id, instance)
                             await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
@@ -228,7 +228,7 @@ async def process_ss(event):
             worldName = EUworlds[str(world_id)]
             mapurl = f"https://assets.ffxivsonar.com/ssminions/{zone_id}.jpg"
             ssRankDead = f"SS Minion on **[{worldName[0]}]** - **{zoneName[0]}** - **x** **{flagXcoord}** **y** **{flagYcoord}** -  has died at <t:{trueTime}:f>"
-            ssRankDeadInstance = f"SS Minion on **[{worldName[0]}]** - **{zoneName[0]}** - **x** **{flagXcoord}** **y** **{flagYcoord}** in  Instance: {instance} has died at <t:{trueTime}:f>"
+            ssRankDeadInstance = f"SS Minion on **[{worldName[0]}]** - **{zoneName[0]}** - **x** **{flagXcoord}** **y** **{flagYcoord}** in Instance: {instance} has died at <t:{trueTime}:f>"
             embed=discord.Embed(title=f" SS MINIONS - **[{worldName[0]}]**  - **{zoneName[0]}**", color=0xe1e100)
             embed.set_image(url=mapurl)
             #Determine which webhook url to use
@@ -297,7 +297,7 @@ async def connect_websocket():
                     hunt_id = event.get("Id")
                     mobs = huntDic['MobDictionary']
                     EUworlds = huntDic['EUWorldDictionary']
-                    #if event is SS minion, then send to process_ss
+                    #if event is SS minion, then send to process_ss>
                     if event_type in filter_types and hunt_id in ss_minion and str(world_id) in EUworlds:
                         await process_ss(event)
                     #if event is normal S-rank, then send to process_hunts
@@ -306,12 +306,9 @@ async def connect_websocket():
                     
                     
         except websockets.exceptions.ConnectionClosedError as e:
-            print(e)
-            print("WebSocket connection closed unexpectedly. Reconnecting...")
-            webhookDebug.send(traceback.format_exc())
             await asyncio.sleep(5)  
             continue
-
+                    
         except websockets.exceptions.ConnectionClosed as e:
             print(e)
             webhookDebug.send(traceback.format_exc())
