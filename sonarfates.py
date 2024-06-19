@@ -31,7 +31,7 @@ MAX_MESSAGE_AGE = 900  # 15 minutes
 
 # Initialize hunt dictionaries
 huntDic = requests.get(huntDict_url).json()
-EU = [33, 36, 37, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
+EU = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
 EUworlds = huntDic['WorldDictionary']
 lworlds = huntDic['WorldDictionary']
 cworlds = huntDic['CWorldDictionary']
