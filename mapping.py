@@ -11,6 +11,7 @@ from discord.ext import commands
 import time
 import math
 from kmeans import get_adjusted_spawn_locations
+import traceback
 hw = [397, 398, 399, 400, 401, 402]
 mob_zone_map = {
 		"134": "Croque-mitaine",
@@ -80,6 +81,8 @@ async def mapping(event):  # sourcery skip: move-assign
         instance = event.get('InstanceId')
         actorID = event.get('ActorId')
         timestamp = int(time.time())
+        currentHP = event.get('CurrentHp')
+        maxHP = event.get('MaxHp')
 
         zones = huntDic['zoneDictionary']
         zoneName = zones[str(zone_id)]
@@ -88,9 +91,9 @@ async def mapping(event):  # sourcery skip: move-assign
         flagXcoord = str((41 * ((rawX + 1024) / 2048)) + 1)[:4]
         flagYcoord = str((41 * ((rawY + 1024) / 2048)) + 1)[:4]
 
-        if hunt_id and zoneName:
+        if currentHP == maxHP:
             #process raw data
-            saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
+            await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
 
 
     except sqlite3.Error as e:
@@ -100,6 +103,7 @@ async def mapping(event):  # sourcery skip: move-assign
 
     except Exception as e:
         print(f"Uexpected error: {e}")
+        traceback.print_exc()
         return f"failed to process data due to error {e}"
 
 async def connect_websocket():
@@ -114,9 +118,11 @@ async def connect_websocket():
                     hunt_id = event.get("Id")
                     mobs = huntDic['ABDictionary']
                     worlds = huntDic['EUWorldDictionary']
+                    currentHP = event.get('CurrentHp')
+                    maxHP = event.get('MaxHp')
                     
                     
-                    if event_type in filter_types and str(world_id) in worlds and str(hunt_id) in mobs:
+                    if event_type in filter_types and str(world_id) in worlds and str(hunt_id) in mobs and currentHP == maxHP:
                         await mapping(event)
                     
                     
@@ -137,7 +143,7 @@ async def connect_websocket():
             await asyncio.sleep(5)  
             continue
 
-def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
+async def saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, rawX, rawY, actorID, timestamp):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
@@ -172,18 +178,8 @@ def setup_database():
 
 setup_database()
 
-def fetch_coordinates(world_id, zone_id, instance):
-    with sqlite3.connect('hunts.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-        SELECT rawX, rawY FROM mapping 
-        WHERE world_id = ? AND zone_id = ? AND instance = ?
-        ''', (world_id, zone_id, instance))
-        
-        return cursor.fetchall()
-
     
-def fixMapping(world_id, zone_id, instance, timestamp):
+async def fixMapping(world_id, zone_id, instance, timestamp: int):
     with sqlite3.connect('hunts.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -274,10 +270,33 @@ async def fixmap(ctx, mobName: str, worldName: str, instance: int = 0, timestamp
         return    
     
     #delete the old mapping points
-    fixMapping(world_id, zone_id, instance, timestamp)
+    await fixMapping(world_id, zone_id, instance, timestamp)
     await ctx.send("mapping deleted good luck kiddo")
     return
-    
+
+@bot.command(name='maintmode')
+async def maintmode(ctx, epoch_time: int):
+    try:
+        # Connect to the SQLite database
+        conn = sqlite3.connect('hunts.db')
+        cursor = conn.cursor()
+
+        # Delete rows with timestamp older than the given epoch time
+        cursor.execute('DELETE FROM mapping WHERE timestamp < ?', (epoch_time,))
+        conn.commit()
+        
+        # Get the number of deleted rows
+        deleted_rows = cursor.rowcount
+
+        # Close the database connection
+        conn.close()
+
+        # Send a confirmation message to the Discord channel
+        await ctx.send(f'Maintenance mode activated. {deleted_rows} old entries removed from the mapping database.')
+
+    except Exception as e:
+        # Send an error message if something goes wrong
+        await ctx.send(f'An error occurred: {e}')
 
 @bot.event
 async def on_ready():
