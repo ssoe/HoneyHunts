@@ -18,21 +18,45 @@ huntDict_url = os.getenv("HUNT_DICT_URL")
 huntDic = requests.get(huntDict_url).json()
 lightUrl = os.getenv("WEBHOOK_URL")
 chaosUrl = os.getenv("CWEBHOOK_URL")
+shadowUrl = os.getenv("SWEBHOOK_URL")
+materiaUrl = os.getenv("MWEBHOOK_URL")
 light_role_id = os.getenv("SRANK_ROLE_ID")
 chaos_role_id = os.getenv("CSRANK_ROLE_ID")
+shadow_role_id = os.getenv("SSRANK_ROLE_ID")
+materia_role_id = os.getenv("MSRANK_ROLE_ID")
 arr_srank = os.getenv("ARR_SRANK")
 hw_srank = os.getenv("HW_SRANK")
 sb_srank = os.getenv("SB_SRANK")
 shb_srank = os.getenv("SHB_SRANK")
 ew_srank = os.getenv("EW_SRANK")
+dt_srank = os.getenv("DT_SRANK")
 c_arr_srank = os.getenv("C_ARR_SRANK")
 c_hw_srank = os.getenv("C_HW_SRANK")
 c_sb_srank = os.getenv("C_SB_SRANK")
 c_shb_srank = os.getenv("C_SHB_SRANK")
 c_ew_srank = os.getenv("C_EW_SRANK")
+c_dt_srank = os.getenv("C_DT_SRANK")
+m_arr_srank = os.getenv("M_ARR_SRANK")
+m_hw_srank = os.getenv("M_HW_SRANK")
+m_sb_srank = os.getenv("M_SB_SRANK")
+m_shb_srank = os.getenv("M_SHB_SRANK")
+m_ew_srank = os.getenv("M_EW_SRANK")
+m_dt_srank = os.getenv("M_DT_SRANK")
+s_arr_srank = os.getenv("S_ARR_SRANK")
+s_hw_srank = os.getenv("S_HW_SRANK")
+s_sb_srank = os.getenv("S_SB_SRANK")
+s_shb_srank = os.getenv("S_SHB_SRANK")
+s_ew_srank = os.getenv("S_EW_SRANK")
+s_dt_srank = os.getenv("S_DT_SRANK")
+
+
+
+
 #dictionaries from json url
 worlds = huntDic['WorldDictionary']
 cworlds = huntDic['CWorldDictionary']
+sworlds = huntDic['SWorldDictionary']
+mworlds = huntDic['MWorldDictionary']
 EUworlds = huntDic['EUWorldDictionary']
 zones = huntDic['zoneDictionary']
 mobs = huntDic['MobDictionary']
@@ -42,6 +66,7 @@ hw = [397, 398, 399, 400, 401, 402]
 sb = [612, 613, 614, 620, 621, 622]
 shb = [813, 814, 815, 816, 817, 818]
 ew = [956, 957, 958, 959, 960, 961]
+# dt = []
 #SS autismo
 ss = [8915, 10615]
 ss_minion = [8916, 10616]
@@ -93,6 +118,8 @@ async def process_hunts(event):
                     srank_exp = shb_srank
                 elif zone_id in ew:
                     srank_exp = ew_srank
+                #elif zone_id in dt:
+                    #srank_exp = dt_srank
             if str(world_id) in cworlds:
                 webhook_url = chaosUrl
                 srank_role_id = chaos_role_id
@@ -105,7 +132,40 @@ async def process_hunts(event):
                 elif zone_id in shb:
                     srank_exp = c_shb_srank
                 elif zone_id in ew:
-                    srank_exp = c_ew_srank            
+                    srank_exp = c_ew_srank
+                #elif zone_id in dt:
+                    #srank_exp = c_dt_srank
+            if str(world_id) in sworlds:
+                webhook_url = shadowUrl
+                srank_role_id = shadow_role_id
+                if zone_id in arr:
+                    srank_exp = s_arr_srank
+                elif zone_id in hw:
+                    srank_exp = s_hw_srank
+                elif zone_id in sb:
+                    srank_exp = s_sb_srank
+                elif zone_id in shb:
+                    srank_exp = s_shb_srank
+                elif zone_id in ew:
+                    srank_exp = s_ew_srank
+                #elif zone_id in dt:
+                    #srank_exp = s_dt_srank
+            if str(world_id) in mworlds:
+                webhook_url = materiaUrl
+                srank_role_id = materia_role_id
+                if zone_id in arr:
+                    srank_exp = m_arr_srank
+                elif zone_id in hw:
+                    srank_exp = m_hw_srank
+                elif zone_id in sb:
+                    srank_exp = m_sb_srank
+                elif zone_id in shb:
+                    srank_exp = m_shb_srank
+                elif zone_id in ew:
+                    srank_exp = m_ew_srank
+                #elif zone_id in dt:
+                    #srank_exp = m_dt_srank
+            
             
             if hunt_id and zoneName:    
                 #make webhook embeds, pain
@@ -199,13 +259,18 @@ async def process_hunts(event):
             
         except sqlite3.Error as e:
             print(f"Database error {e}")
-            webhookDebug.send(traceback.format_exc())
+            webhookDebug.send("Unexpected error in process_hunts() with database, if you get no further error, restart script")
+            webhookDebug.send(traceback.format_exc(chain=False))
             return f"failed to process data due to DB error: {e}"
+
         
         except Exception as e:
             print(f"Uexpected error: {e}")
-            webhookDebug.send(traceback.format_exc())
-            return f"failed to process data due to error {e}"
+            webhookDebug.send("Unexpected error in process_hunts(), if you get no further error, restart script")
+            webhookDebug.send(traceback.format_exc(chain=False))
+            return f"failed to process data due to unexpected error: {e}"
+
+
 
 #make less ugly?
 async def process_ss(event):
@@ -235,7 +300,11 @@ async def process_ss(event):
             if str(world_id) in worlds:
                 webhook_url = lightUrl
             elif str(world_id) in cworlds:
-                webhook_url =  chaosUrl 
+                webhook_url =  chaosUrl
+            elif str(world_id) in sworlds:
+                webhook_url = shadowUrl
+            elif str(world_id) in mworlds:
+                webhook_url = materiaUrl 
             webhookSrank = Webhook.from_url(webhook_url, session=session2)            
 
             #if not in instance
@@ -265,7 +334,8 @@ async def process_ss(event):
             return 'Data processed and sent to webhook'
         
         except Exception as e:
-            webhookDebug.send(traceback.format_exc())
+            webhookDebug.send("Unexpected in process_ss(), if you get no further error, restart script")
+            webhookDebug.send(traceback.format_exc(chain=False))
             return f"failed to process data due to error {e}"
         
 #class for storing and checking variables for changes. I implemented this to avoid needless edits to avoid rate limiting.
@@ -311,7 +381,8 @@ async def connect_websocket():
                     
         except websockets.exceptions.ConnectionClosed as e:
             print(e)
-            webhookDebug.send(traceback.format_exc())
+            webhookDebug.send("Connection error with websocket in connect_websocket(), if you get no further error, restart script")
+            webhookDebug.send(traceback.format_exc(chain=False))
             websocket.close()
             await asyncio.sleep(5)
             continue
@@ -320,7 +391,8 @@ async def connect_websocket():
             print(f"Unexpected error with WebSocket: {e}")
             print("exc print")
             traceback.print_exc()
-            webhookDebug.send(traceback.format_exc())
+            webhookDebug.send("Unexpected error with websocket in connect_websocket(), if you get no further error, restart script")
+            webhookDebug.send(traceback.format_exc(chain=False))
             print("stack print")
             traceback.print_stack()
             await asyncio.sleep(5)  
