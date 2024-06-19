@@ -3,6 +3,7 @@ from discord.ext import commands
 import sqlite3
 import os
 from dotenv import load_dotenv
+import difflib
 
 load_dotenv()
 # Initialize the bot
@@ -10,6 +11,7 @@ intents = discord.Intents.default()
 intents.message_content = True 
 bot = commands.Bot(command_prefix='!', intents=intents)
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+
 # Your dictionaries
 world_dict = {
     "33": "Twintania",
@@ -46,50 +48,54 @@ def get_last_5_statuses(fate_id, world_id):
     conn.close()
     return results
 
+def find_best_match(world_name):
+    world_names = list(world_dict.values())
+    closest_matches = difflib.get_close_matches(world_name, world_names, n=1, cutoff=0.1)
+    return closest_matches[0] if closest_matches else None
+
 # Command to get the last 5 statuses for Senmurv
 @bot.command()
 async def senmurv(ctx, world_name):
-    # Find the world_id corresponding to the world_name
-    world_id = [k for k, v in world_dict.items() if v[0].lower() == world_name[0].lower()]
-    if not world_id:
+    # Find the world_id corresponding to the best matching world_name
+    matched_world_name = find_best_match(world_name)
+    if not matched_world_name:
         await ctx.send("Invalid world name.")
         return
-    world_id = world_id[0]  # Take the first match
-
+    world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
+    print(world_id)
     # Fetch the last 5 statuses
-    fate_id = 831  # Replace with the actual fate_id for Senmurv
+    fate_id = 831  
     statuses = get_last_5_statuses(fate_id, world_id)
 
     # Prepare the message
-    message = f"Last 5 known states for Senmurv fate on {world_name}:\n"
+    message = f"Last 5 known states for Senmurv fate on {matched_world_name}:\n"
     for status, time in statuses:
         message += f"- {status_dict[str(status)]} at <t:{time}> <t:{time}:R>\n"
 
     # Send the message
     await ctx.send(message)
-    
-    # Command to get the last 5 statuses for orghana
+
+# Command to get the last 5 statuses for Orghana
 @bot.command()
 async def orghana(ctx, world_name):
-    # Find the world_id corresponding to the world_name
-    world_id = [k for k, v in world_dict.items() if v[0].lower() == world_name[0].lower()]
-    if not world_id:
+    # Find the world_id corresponding to the best matching world_name
+    matched_world_name = find_best_match(world_name)
+    if not matched_world_name:
         await ctx.send("Invalid world name.")
         return
-    world_id = world_id[0]  # Take the first match
-
+    world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
+    print(world_id)
     # Fetch the last 5 statuses
-    fate_id = 1259  # Replace with the actual fate_id for orghana
+    fate_id = 1259  
     statuses = get_last_5_statuses(fate_id, world_id)
 
     # Prepare the message
-    message = f"Last 5 known states for orghana fate on {world_name}:\n"
+    message = f"Last 5 known states for Orghana fate on {matched_world_name}:\n"
     for status, time in statuses:
         message += f"- {status_dict[str(status)]} at <t:{time}> <t:{time}:R>\n"
 
     # Send the message
     await ctx.send(message)
-
 
 # Run the bot
 bot.run(DISCORD_TOKEN)
