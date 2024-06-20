@@ -50,8 +50,11 @@ def get_last_5_statuses(fate_id, world_id):
 
 def find_best_match(world_name):
     world_names = list(world_dict.values())
-    closest_matches = difflib.get_close_matches(world_name, world_names, n=1, cutoff=0.1)
-    return closest_matches[0] if closest_matches else None
+    world_name = world_name.lower()
+    matches = [(name, name.lower().find(world_name)) for name in world_names if world_name in name.lower()]
+    matches = [match for match in matches if match[1] == 0]  # Ensure it matches from the beginning of the name
+    matches.sort(key=lambda x: (x[1], len(x[0])))  # Sort by position and length
+    return matches[0][0] if matches else None
 
 # Command to get the last 5 statuses for Senmurv
 @bot.command()
@@ -62,7 +65,7 @@ async def senmurv(ctx, world_name):
         await ctx.send("Invalid world name.")
         return
     world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
-    print(world_id)
+
     # Fetch the last 5 statuses
     fate_id = 831  
     statuses = get_last_5_statuses(fate_id, world_id)
@@ -84,7 +87,7 @@ async def orghana(ctx, world_name):
         await ctx.send("Invalid world name.")
         return
     world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
-    print(world_id)
+
     # Fetch the last 5 statuses
     fate_id = 1259  
     statuses = get_last_5_statuses(fate_id, world_id)
