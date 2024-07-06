@@ -3,7 +3,6 @@ from discord.ext import commands
 import sqlite3
 import os
 from dotenv import load_dotenv
-import difflib
 
 load_dotenv()
 # Initialize the bot
