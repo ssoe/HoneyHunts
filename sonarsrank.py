@@ -66,10 +66,11 @@ hw = [397, 398, 399, 400, 401, 402]
 sb = [612, 613, 614, 620, 621, 622]
 shb = [813, 814, 815, 816, 817, 818]
 ew = [956, 957, 958, 959, 960, 961]
-# dt = []
+dt = [1187, 1188, 1189, 1190, 1191, 1192]
+
 #SS autismo
-ss = [8915, 10615]
-ss_minion = [8916, 10616]
+ss = [8915, 10615, 13406]
+ss_minion = [8916, 10616, 13407]
 SS_ids = {} #storing minion spawns so I can check if already posted
 message_ids = {}  # Dictionary to store message IDs so I can edit posts with new information
 #Debug webhook, send errors to discord channel
@@ -118,8 +119,8 @@ async def process_hunts(event):
                     srank_exp = shb_srank
                 elif zone_id in ew:
                     srank_exp = ew_srank
-                #elif zone_id in dt:
-                    #srank_exp = dt_srank
+                elif zone_id in dt:
+                    srank_exp = dt_srank
             if str(world_id) in cworlds:
                 webhook_url = chaosUrl
                 srank_role_id = chaos_role_id
@@ -133,8 +134,8 @@ async def process_hunts(event):
                     srank_exp = c_shb_srank
                 elif zone_id in ew:
                     srank_exp = c_ew_srank
-                #elif zone_id in dt:
-                    #srank_exp = c_dt_srank
+                elif zone_id in dt:
+                    srank_exp = c_dt_srank
             if str(world_id) in sworlds:
                 webhook_url = shadowUrl
                 srank_role_id = shadow_role_id
@@ -148,8 +149,8 @@ async def process_hunts(event):
                     srank_exp = s_shb_srank
                 elif zone_id in ew:
                     srank_exp = s_ew_srank
-                #elif zone_id in dt:
-                    #srank_exp = s_dt_srank
+                elif zone_id in dt:
+                    srank_exp = s_dt_srank
             if str(world_id) in mworlds:
                 webhook_url = materiaUrl
                 srank_role_id = materia_role_id
@@ -163,8 +164,8 @@ async def process_hunts(event):
                     srank_exp = m_shb_srank
                 elif zone_id in ew:
                     srank_exp = m_ew_srank
-                #elif zone_id in dt:
-                    #srank_exp = m_dt_srank
+                elif zone_id in dt:
+                    srank_exp = m_dt_srank
             
             
             if hunt_id and zoneName:    
