@@ -54,9 +54,32 @@ mob_zone_map = {
 		"958": "Armstrong",
 		"959": "Ruminator",
 		"960": "Narrow-rift",
-		"961": "Ophioneus"
+		"961": "Ophioneus",
+        "1187": "Kirlirger the Abhorrent",
+        "1188": "Ihnuxokiy",
+        "1189": "Neyoozoteel",
+        "1190": "Sansheya",
+        "1191": "Atticus the Primogenitor",
+        "1192": "The Forecaster"
 	}
-
+world_dict = {
+    "33": "Twintania",
+    "36": "Lich",
+    "42": "Zodiark",
+    "56": "Phoenix",
+    "66": "Odin",
+    "67": "Shiva",
+    "402": "Alpha",
+    "403": "Raiden",
+    "39": "Omega",
+    "71": "Moogle",
+    "80": "Cerberus",
+    "83": "Louisoix",
+    "85": "Spriggan",
+    "97": "Ragnarok",
+    "400": "Sagittarius",
+    "401": "Phantom"
+}
 load_dotenv()
 huntDict_url = os.getenv("HUNT_DICT_URL")
 WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
@@ -67,6 +90,7 @@ intents = discord.Intents.default()
 intents.message_content = True 
 bot = commands.Bot(command_prefix='!', intents=intents)
 zone_mob_map = {v.lower(): k for k, v in mob_zone_map.items()}
+EUworlds = huntDic['EUWorldDictionary']
 
 
 async def mapping(event):  # sourcery skip: move-assign
@@ -194,6 +218,9 @@ async def draw(world_id, zone_id, instance=0):
     # Use get_adjusted_spawn_locations to fetch adjusted coordinates
     adjusted_locations = get_adjusted_spawn_locations(world_id, zone_id, instance)
     
+    # Filter locations with type 1
+    filtered_locations = [loc for loc in adjusted_locations if loc.type == 1]
+    
     mapped_image_path = f'maps/{zone_id}_mapped.jpg'
     base_image_path = f'maps/{zone_id}.jpg'
 
@@ -202,7 +229,7 @@ async def draw(world_id, zone_id, instance=0):
         draw = ImageDraw.Draw(im)
         
         # Iterate through the adjusted coordinates and draw circles
-        for location in adjusted_locations:
+        for location in filtered_locations:
             x_pixel = 1024 + location.raw_x  # Adjust this if necessary
             y_pixel = 1024 + location.raw_y  # Adjust this if necessary
             
@@ -211,9 +238,25 @@ async def draw(world_id, zone_id, instance=0):
         # Save the new image
         im.save(mapped_image_path)
 
-    return len(adjusted_locations), mapped_image_path
+    return len(filtered_locations), mapped_image_path
 
-        
+
+async def matchWorlds(worldName):
+    worldNames = list(world_dict.values())
+    worldName = worldName.lower()
+    matches = [(name, name.lower().find(worldName)) for name in worldNames if worldName in name.lower()]
+    matches = [match for match in matches if match[1] == 0]  # Ensure it matches from the beginning of the name
+    matches.sort(key=lambda x: (x[1], len(x[0])))  # Sort by position and length
+    return matches[0][0] if matches else None
+
+async def matchHunts(mobName):
+    mobNames = list(mob_zone_map.values())
+    mobName = mobName.lower()
+    matches = [(name, name.lower().find(mobName)) for name in mobNames if mobName in name.lower()]
+    matches = [match for match in matches if match[1] == 0]  # Ensure it matches from the beginning of the name
+    matches.sort(key=lambda x: (x[1], len(x[0])))  # Sort by position and length
+    return matches[0][0] if matches else None
+
 @bot.command()
 async def map(ctx, mobName: str, worldName: str, instance: int = 0):
     # Convert mobName and worldName to lowercase to make the search case insensitive
@@ -229,21 +272,21 @@ async def map(ctx, mobName: str, worldName: str, instance: int = 0):
         return
 
     # Look up world_id
-    world_id = next((k for k, v in huntDic['EUWorldDictionary'].items() if worldName in v[0].lower()), None)
+    matched_worldName = await matchWorlds(worldName)
+    matched_hunts = await matchHunts(mobName)
     
-    # If no matching world, send error
-    if not world_id:
+    if not matched_worldName:
         await ctx.send(f"Invalid world name '{worldName}'.")
         return
 
-
+    world_id = [k for k, v in world_dict.items() if v == matched_worldName][0]
     # Generate the map image
     data_count, mapped_image_path = await draw(int(world_id), int(zone_id), instance)
     
     # Send the image
     with open(mapped_image_path, 'rb') as img:
+        await ctx.send(f"mapping for {matched_hunts} on {matched_worldName}")
         await ctx.send(file=discord.File(img, f"maps/{zone_id}_mapped.jpg"))
-        #await ctx.send(f"Map generated using {data_count} data points.")
     # Delete the image after sending it
     os.remove(mapped_image_path)
 
