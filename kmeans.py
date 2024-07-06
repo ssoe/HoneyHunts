@@ -2,22 +2,22 @@ import sqlite3
 
 HEAVENSWARD_ZONES = [397, 398, 399, 400, 401, 402]
 
-
 class Location:
-    def __init__(self, raw_x, raw_y, zone_id, pos_id=None):
+    def __init__(self, raw_x, raw_y, zone_id, pos_id=None, loc_type=None):
         self.zone_id = zone_id
         self.raw_x = raw_x
         self.raw_y = raw_y
         self.pos_id = pos_id
+        self.type = loc_type  
     
     @classmethod
-    def from_coord(cls, coord_x, coord_y, zone_id, pos_id=None):
-        return cls(Location.coord_to_raw(coord_x, zone_id), Location.coord_to_raw(coord_y, zone_id), zone_id, pos_id)
+    def from_coord(cls, coord_x, coord_y, zone_id, pos_id=None, loc_type=None):
+        return cls(Location.coord_to_raw(coord_x, zone_id), Location.coord_to_raw(coord_y, zone_id), zone_id, pos_id, loc_type)
 
     @classmethod
-    def from_flag_string(cls, string, zone_id, pos_id=None):
+    def from_flag_string(cls, string, zone_id, pos_id=None, loc_type=None):
         x, y = list(map(float, string.split(',')))
-        return Location.from_coord(x, y, zone_id, pos_id)
+        return Location.from_coord(x, y, zone_id, pos_id, loc_type)
 
     @staticmethod
     def raw_to_coord(raw_coord, zone_id):
@@ -34,24 +34,24 @@ class Location:
 
     def __repr__(self):
         pos_id_str = f"pos_id:{self.pos_id}" if self.pos_id else ""
-        return f"(Location: zone: {self.zone_id}, raw: ({self.raw_x}, {self.raw_y}), {pos_id_str})"
-    
+        type_str = f"type:{self.type}" if self.type else ""
+        return f"(Location: zone: {self.zone_id}, raw: ({self.raw_x}, {self.raw_y}), {pos_id_str}, {type_str})"
 
-def kmeans(points, initial_guesses, iterations = 50):
+def kmeans(points, initial_guesses, iterations=100):
+    
     """
     Apply K-means clustering to the spawn locations using, say, the faloop locations as an initial guess.
     This returns a dictionary, with the optimized coordinates as keys and the associated spawn coordinate data as values.
     """
-
     from copy import deepcopy
     from functools import partial
     from math import sqrt
 
     def mean(data):
-        return sum(data)/len(data)
+        return sum(data) / len(data)
 
-    def dist(p: Location, q: Location):
-        return sqrt((p.raw_x - q.raw_x) ** 2  + (p.raw_y - q.raw_y) ** 2)
+    def dist(p, q):
+        return sqrt((p.raw_x - q.raw_x) ** 2 + (p.raw_y - q.raw_y) ** 2)
 
     def assign_data(centroids, data):
         """
@@ -59,7 +59,7 @@ def kmeans(points, initial_guesses, iterations = 50):
         """
         d = {x: [] for x in centroids}
         for point in data:
-            closest_centroid = min(centroids, key = partial(dist, point))
+            closest_centroid = min(centroids, key=partial(dist, point))
             d[closest_centroid].append(point)
         return d
 
@@ -72,13 +72,12 @@ def kmeans(points, initial_guesses, iterations = 50):
         new_groups = {}
         for group in groups:
             if len(groups[group]) == 0:
-                print(f"Culled {group} because no coordinates were near it")
                 continue
             mean_x = mean([x.raw_x for x in groups[group]])
             mean_y = mean([x.raw_y for x in groups[group]])
-            new_groups[Location(mean_x, mean_y, group.zone_id, group.pos_id)] = groups[group]
+            new_groups[Location(mean_x, mean_y, group.zone_id, group.pos_id, group.type)] = groups[group]
         return new_groups
-   
+
     centroids = deepcopy(initial_guesses)
     for _ in range(iterations):
         """
@@ -90,14 +89,13 @@ def kmeans(points, initial_guesses, iterations = 50):
         centroids = compute_centroids(labelled)
     return centroids
 
-
 def get_adjusted_spawn_locations(world_id, zone_id, instance):
     with sqlite3.connect('hunts.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''SELECT rawX, rawY FROM mapping WHERE world_id = ? AND zone_id = ? AND instance = ?''', (world_id, zone_id, instance))
         spawn_data = [Location(int(x[0]), int(x[1]), zone_id) for x in cursor.fetchall()]
 
-        cursor.execute('''SELECT coords, posId FROM zone_positions WHERE zoneId = ?''', (zone_id,))
-        zone_pos = [Location.from_flag_string(x[0], zone_id, pos_id=x[1]) for x in cursor.fetchall()]
+        cursor.execute('''SELECT coords, posId, type FROM zone_positions WHERE zoneId = ?''', (zone_id,))
+        zone_pos = [Location.from_flag_string(x[0], zone_id, pos_id=x[1], loc_type=x[2]) for x in cursor.fetchall()]
 
     return kmeans(spawn_data, zone_pos).keys()
