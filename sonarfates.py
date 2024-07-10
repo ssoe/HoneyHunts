@@ -26,13 +26,16 @@ l_mid = os.getenv("MINHOCAO_ROLE")
 c_oid = os.getenv("C_ORGHANA_ROLE")
 c_sid = os.getenv("C_SENMURV_ROLE")
 c_mid = os.getenv("C_MINHOCAO_ROLE")
+l_DTid = os.getenv("L_Sansheya_ROLE")
+c_DTid = os.getenv("C_Sansheya_ROLE")
+
 WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
 MAX_MESSAGE_AGE = 900  # 15 minutes
 
 # Initialize hunt dictionaries
 huntDic = requests.get(huntDict_url).json()
 EU = [33, 36, 42, 56, 66, 67, 402, 403, 39, 71, 80, 83, 85, 97, 400, 401]
-EUworlds = huntDic['WorldDictionary']
+EUworlds = huntDic['EUWorldDictionary']
 lworlds = huntDic['WorldDictionary']
 cworlds = huntDic['CWorldDictionary']
 fates = huntDic['FateDictionary']
@@ -43,12 +46,14 @@ status = huntDic['FateStatus']
 fate_to_hunt_map = {
     1259: 5986,  # Orghana
     831: 4375,  # Senmurv
-    556: 2961   # Minhocao
+    556: 2961,   # Minhocao
+    1862: 4173   # Sansheya
 }
 hunt_to_cooldown_map = {
     5986: 84 * 3600,  # Orghana
     4375: 84 * 3600,  # Senmurv
-    2961: 57 * 3600   # Minhocao
+    2961: 57 * 3600,   # Minhocao
+    4173: 84 * 3600   # Sansheya
 }
 
 # Dictionary to store message IDs
@@ -88,6 +93,7 @@ async def process_fate(event, fate_id, role_id, webhook_url, title):
             status_id = event.get('Status')
             start_time = event.get("StartTime") / 1000  # Convert milliseconds to seconds
             duration = event.get("Duration") / 1000  # Convert milliseconds to seconds
+            instance = event.get('InstanceId')
 
             flag_x, flag_y = get_flag_coordinates(raw_x, raw_y)
             world_name = EUworlds[str(world_id)]
@@ -109,16 +115,20 @@ async def process_fate(event, fate_id, role_id, webhook_url, title):
                 timer=create_timer_string(duration, remaining_time),
                 image_url=f"https://api.ffxivsonar.com/render/map?zoneid={zone_id}&flagx={flag_x}&flagy={flag_y}&fate=true"
             )
-            content = f"<@&{role_id}> {title} on {world_name[0]}"
+            if instance != 0:
+                content = f"<@&{role_id}> {title} on {world_name[0]} in Instance: {instance}"
+            else:
+                content = f"<@&{role_id}> {title} on {world_name[0]}"
+            
             webhook = Webhook.from_url(webhook_url, session=session)
                         
             if (fate_id, world_id) in message_ids:
                 message_id, _ = message_ids[(fate_id, world_id)]
-                await insert_status_to_fates_db(fate_id, world_id, status_id, start_time)
+                await insert_status_to_fates_db(fate_id, world_id, status_id, start_time, instance)
                 message = await webhook.edit_message(message_id, embed=embed, content=content)
             else:
                 message = await webhook.send(embed=embed, wait=True, content=content)
-                await insert_status_to_fates_db(fate_id, world_id, status_id, start_time)
+                await insert_status_to_fates_db(fate_id, world_id, status_id, start_time, instance)
                 message_ids[(fate_id, world_id)] = (message.id, time.time())
             print(message.id)
         except Exception as e:
@@ -139,18 +149,19 @@ async def filter_events():
                     fate_id = event.get("Id")
                     world_id = event.get("WorldId")
                     status_id = event.get("Status")
+                    instance = event.get('InstanceId')
 
                     if event_type in filter_types and fate_id in fate_to_hunt_map and world_id in EU:
                         print(f"Received event: {event}")
                         print("Now checking database for dead hunts...")
 
                         hunt_id = fate_to_hunt_map.get(fate_id)
-                        if db_result := await get_from_database(hunt_id, world_id):
+                        if db_result := await get_from_database(hunt_id, world_id, instance):
                             deathtimer = db_result[0]
                             current_time = int(time.time())
                             cooldown_time = hunt_to_cooldown_map.get(hunt_id)
                             if current_time - deathtimer > cooldown_time:
-                                await delete_from_database(hunt_id, world_id)
+                                await delete_from_database(hunt_id, world_id, instance)
                                 #print(f"Checking if window open... It is! deleted {hunt_id}, {world_id} from database")
                             else:
                                 #print("The swanky window is closed! Ignoring event")
@@ -162,6 +173,8 @@ async def filter_events():
                             await process_fate(event, fate_id, c_sid if str(world_id) in cworlds else l_sid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Senmurv Fate - Cerf's Up")
                         elif fate_id == 556:
                             await process_fate(event, fate_id, c_mid if str(world_id) in cworlds else l_mid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Minhocao Fate - Core Blimey")
+                        elif fate_id == 1862:
+                            await process_fate(event, fate_id, c_DTid if str(world_id) in cworlds else l_DTid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Sansheya Fate - You Are What You Drink")
 
                         if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
                             del message_ids[(fate_id, world_id)]
@@ -189,36 +202,36 @@ async def filter_events():
             continue
 
 
-async def get_from_database(hunt_id, world_id):
+async def get_from_database(hunt_id, world_id, instance):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT deathtimer FROM hunts WHERE hunt_id = ? AND world_id = ?', (hunt_id, world_id))
+    cursor.execute('SELECT deathtimer FROM hunts WHERE hunt_id = ? AND world_id = ? AND instance = ?', (hunt_id, world_id, instance))
     result = cursor.fetchone()
-    print(f"Retrieved entry for hunt_id {hunt_id}, world_id {world_id} from the database: {result}")
+    print(f"Retrieved entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance} from the database: {result}")
     conn.close()
     return result
 
-async def delete_from_database(hunt_id, world_id):
+async def delete_from_database(hunt_id, world_id, instance):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
-    print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id} from the database.")
-    cursor.execute('DELETE FROM hunts WHERE hunt_id = ? AND world_id = ?', (hunt_id, world_id))
+    print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance} from the database.")
+    cursor.execute('DELETE FROM hunts WHERE hunt_id = ? AND world_id = ? AND instance = ?', (hunt_id, world_id, instance))
     conn.commit()
     conn.close()
 
-async def insert_status_to_fates_db(fate_id, world_id, status_id, start_time):
+async def insert_status_to_fates_db(fate_id, world_id, status_id, start_time, instance):
     try:
         conn = sqlite3.connect('fates.db')
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM fate_statuses WHERE fate_id = ? AND world_id = ? AND starttime = ?', (fate_id, world_id, start_time))
+        cursor.execute('SELECT * FROM fate_statuses WHERE fate_id = ? AND world_id = ? AND starttime = ? AND instance = ?', (fate_id, world_id, start_time, instance))
         existing_record = cursor.fetchone()
 
         current_time = int(time.time())
 
         if existing_record:
-            cursor.execute('UPDATE fate_statuses SET status = ?, time = ? WHERE fate_id = ? AND world_id = ? AND starttime = ?', (status_id, current_time, fate_id, world_id, start_time))
+            cursor.execute('UPDATE fate_statuses SET status = ?, time = ? WHERE fate_id = ? AND world_id = ? AND starttime = ? AND instance = ?', (status_id, current_time, fate_id, world_id, start_time, instance))
         else:
-            cursor.execute('INSERT INTO fate_statuses (fate_id, world_id, status, time, starttime) VALUES (?, ?, ?, ?, ?)', (fate_id, world_id, status_id, current_time, start_time))
+            cursor.execute('INSERT INTO fate_statuses (fate_id, world_id, status, time, starttime, instance) VALUES (?, ?, ?, ?, ?, ?)', (fate_id, world_id, status_id, current_time, start_time, instance))
 
         conn.commit()
     except sqlite3.Error as e:
