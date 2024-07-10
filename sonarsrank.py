@@ -201,7 +201,7 @@ async def process_hunts(event):
                             return 'SS event over'
                         else:#delete from message ids and save to database; deathtimer, yeet old mapping, save srank spot to new mapping
                             #del message_ids[(hunt_id, world_id, actorID)]
-                            await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
+                            await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID, instance)
                             await deleteMapping(world_id, zone_id, instance)
                             await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                     else: #if alive check if already posted, if not then post.
@@ -234,7 +234,7 @@ async def process_hunts(event):
                             return 'SS event over'
                         else:#delete from message ids and save to database; deathtimer, yeet old mapping, save srank spot to new mapping
                             #del message_ids[(hunt_id, world_id, actorID)]
-                            await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID)
+                            await save_to_database(hunt_id, world_id, message_state.message_id, deathtimer, actorID, instance)
                             await deleteMapping(world_id, zone_id, instance)
                             await saveMappingToDB(hunt_id, world_id, instance, zone_id, flagXcoord, flagYcoord, int(rawX), int(rawY), actorID, timestamp)
                     else: #if alive check if already posted, if not then post.
@@ -404,23 +404,24 @@ async def main():
     await connect_websocket()
     
 #database for storing S rank deaths    
-def setup_database():
-    with sqlite3.connect('hunts.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS hunts (
-            hunt_id INTEGER,
-            world_id INTEGER,
-            message_id INTEGER,
-            deathtimer TIMESTAMP,
-            actorID TEXT,
-            PRIMARY KEY (actorID)
-        )
-        ''')
-    conn.commit()
-    conn.close()
+# def setup_database():
+#     with sqlite3.connect('hunts.db') as conn:
+#         cursor = conn.cursor()
+#         cursor.execute('''
+#         CREATE TABLE IF NOT EXISTS hunts (
+#             hunt_id INTEGER,
+#             world_id INTEGER,
+#             message_id INTEGER,
+#             deathtimer TIMESTAMP,
+#             actorID TEXT,
+#             PRIMARY KEY (actorID),
+#             instance INTEGER
+#         )
+#         ''')
+#     conn.commit()
+#     conn.close()
 
-setup_database()
+#setup_database()
 
 #Delete old mapping when S rank dies
 async def deleteMapping(world_id, zone_id, instance):
@@ -435,14 +436,14 @@ async def deleteMapping(world_id, zone_id, instance):
         print(f"Database error: {e}")
         return f"Failed to delete entries due to DB error: {e}"
 #save S rank death to database
-async def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID):
+async def save_to_database(hunt_id, world_id, message_id, deathtimer, actorID, instance):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
     
     cursor.execute('''
-    INSERT OR REPLACE INTO hunts (hunt_id, world_id, message_id, deathtimer, actorID)
-    VALUES (?, ?, ?, ?, ?)
-    ''', (hunt_id, world_id, message_id, deathtimer, actorID))
+    INSERT OR REPLACE INTO hunts (hunt_id, world_id, message_id, deathtimer, actorID, instance)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ''', (hunt_id, world_id, message_id, deathtimer, actorID, instance))
     
     conn.commit()
     conn.close()
