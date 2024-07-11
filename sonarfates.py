@@ -47,13 +47,13 @@ fate_to_hunt_map = {
     1259: 5986,  # Orghana
     831: 4375,  # Senmurv
     556: 2961,   # Minhocao
-    1862: 4173   # Sansheya
+    1862: 13399   # Sansheya
 }
 hunt_to_cooldown_map = {
-    5986: 84 * 3600,  # Orghana
-    4375: 84 * 3600,  # Senmurv
+    5986: 108 * 3600,  # Orghana
+    4375: 108 * 3600,  # Senmurv
     2961: 57 * 3600,   # Minhocao
-    4173: 84 * 3600   # Sansheya
+    13399: 108 * 3600   # Sansheya
 }
 
 # Dictionary to store message IDs
@@ -132,9 +132,9 @@ async def process_fate(event, fate_id, role_id, webhook_url, title):
                 message_ids[(fate_id, world_id)] = (message.id, time.time())
             print(message.id)
         except Exception as e:
-            print(f"Uexpected error: {e}")
+            print(f"Unexpected error: {e}")
             print(traceback.format_exc(chain=False))
-            return f"failed to process data due to unexpected error: {e}"
+            return f"Failed to process data due to unexpected error: {e}"
         
 async def filter_events():
     while True:
@@ -152,19 +152,27 @@ async def filter_events():
                     instance = event.get('InstanceId')
 
                     if event_type in filter_types and fate_id in fate_to_hunt_map and world_id in EU:
-                        print(f"Received event: {event}")
-                        print("Now checking database for dead hunts...")
+                        #print(f"Received event: {event}")
+                        #print("Now checking database for dead hunts...")
 
                         hunt_id = fate_to_hunt_map.get(fate_id)
-                        if db_result := await get_from_database(hunt_id, world_id, instance):
+                        db_result = await get_from_database(hunt_id, world_id, instance)
+                        if db_result:
                             deathtimer = db_result[0]
+                            #print(f"Deathtimer retrieved: {deathtimer}")
+                            if deathtimer is None:
+                                print(f"Deathtimer is None for hunt_id {hunt_id}, world_id {world_id}, instance {instance}")
+                                continue
+
                             current_time = int(time.time())
                             cooldown_time = hunt_to_cooldown_map.get(hunt_id)
+                            #print(type(deathtimer), type(current_time), type(cooldown_time))
+                            #print(cooldown_time)
                             if current_time - deathtimer > cooldown_time:
                                 await delete_from_database(hunt_id, world_id, instance)
-                                #print(f"Checking if window open... It is! deleted {hunt_id}, {world_id} from database")
+                                #print(f"Checking if window open... It is! Deleted {hunt_id}, {world_id}, {instance} from database")
                             else:
-                                #print("The swanky window is closed! Ignoring event")
+                                #print("The window is closed! Ignoring event")
                                 continue
 
                         if fate_id == 1259:
@@ -181,6 +189,7 @@ async def filter_events():
 
         except sqlite3.Error as e:
             print(f"Database error {e}")
+            traceback.print_stack()
             await asyncio.sleep(5)
             continue
 
@@ -198,9 +207,9 @@ async def filter_events():
 
         except Exception as e:
             print(f"Unexpected error with WebSocket: {e}")
+            traceback.print_stack()
             await asyncio.sleep(5)
             continue
-
 
 async def get_from_database(hunt_id, world_id, instance):
     conn = sqlite3.connect('hunts.db')
@@ -214,7 +223,7 @@ async def get_from_database(hunt_id, world_id, instance):
 async def delete_from_database(hunt_id, world_id, instance):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
-    print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance} from the database.")
+    print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance}.")
     cursor.execute('DELETE FROM hunts WHERE hunt_id = ? AND world_id = ? AND instance = ?', (hunt_id, world_id, instance))
     conn.commit()
     conn.close()
@@ -239,7 +248,6 @@ async def insert_status_to_fates_db(fate_id, world_id, status_id, start_time, in
     finally:
         if conn:
             conn.close()
-
 
 async def main():
     await filter_events()
