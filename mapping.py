@@ -11,6 +11,7 @@ from discord.ext import commands
 import time
 import math
 from kmeans import get_adjusted_spawn_locations
+from maintmode import maintmode_set_db
 import traceback
 hw = [397, 398, 399, 400, 401, 402]
 mob_zone_map = {
@@ -327,15 +328,21 @@ async def maintmode(ctx, epoch_time: int):
         # Delete rows with timestamp older than the given epoch time
         cursor.execute('DELETE FROM mapping WHERE timestamp < ?', (epoch_time,))
         conn.commit()
-        
         # Get the number of deleted rows
         deleted_rows = cursor.rowcount
+        # Delete old hunt timers
+        cursor.execute('DELETE FROM hunts WHERE hunt_id = 13399')
+        cursor.execute('DELETE FROM hunts WHERE hunt_id = 2961')
+        cursor.execute('DELETE FROM hunts WHERE hunt_id = 4375')
+        cursor.execute('DELETE FROM hunts WHERE hunt_id = 5986')
+        conn.commit()
 
         # Close the database connection
         conn.close()
+        await maintmode_set_db(epoch_time)
 
         # Send a confirmation message to the Discord channel
-        await ctx.send(f'Maintenance mode activated. {deleted_rows} old entries removed from the mapping database.')
+        await ctx.send(f'Maintenance mode activated. {deleted_rows} old mapping entries removed from DB. Deleted old hunt death timers and inserted new death timers from maint time.')
 
     except Exception as e:
         # Send an error message if something goes wrong
