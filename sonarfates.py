@@ -20,6 +20,10 @@ huntDict_url = os.getenv("HUNT_DICT_URL")
 lightwebhook = os.getenv("WEBHOOK_FATE_URL")
 chaoswebhook = os.getenv("C_WEBHOOK_FATE_URL")
 srankfate_role_id = os.getenv("SRANKFATE_ROLE_ID")
+fatewebhook = os.getenv("FATE_WEBHOOK_URL")
+
+l_serpent = os.getenv("SERPENT_ROLE")
+l_mascot = os.getenv("MASCOT_ROLE")
 l_sid = os.getenv("SENMURV_ROLE")
 l_oid = os.getenv("ORGHANA_ROLE")
 l_mid = os.getenv("MINHOCAO_ROLE")
@@ -47,14 +51,17 @@ fate_to_hunt_map = {
     1259: 5986,  # Orghana
     831: 4375,  # Senmurv
     556: 2961,   # Minhocao
-    1862: 13399   # Sansheya
+    1862: 13399,   # Sansheya
 }
 hunt_to_cooldown_map = {
     5986: 108 * 3600,  # Orghana
     4375: 108 * 3600,  # Senmurv
     2961: 57 * 3600,   # Minhocao
-    13399: 108 * 3600   # Sansheya
+    13399: 84 * 3600   # Sansheya
 }
+
+
+
 
 # Dictionary to store message IDs
 message_ids = {}
@@ -130,7 +137,7 @@ async def process_fate(event, fate_id, role_id, webhook_url, title):
                 message = await webhook.send(embed=embed, wait=True, content=content)
                 await insert_status_to_fates_db(fate_id, world_id, status_id, start_time, instance)
                 message_ids[(fate_id, world_id)] = (message.id, time.time())
-            print(message.id)
+            #print(message.id)
         except Exception as e:
             print(f"Unexpected error: {e}")
             print(traceback.format_exc(chain=False))
@@ -183,6 +190,12 @@ async def filter_events():
                             await process_fate(event, fate_id, c_mid if str(world_id) in cworlds else l_mid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Minhocao Fate - Core Blimey")
                         elif fate_id == 1862:
                             await process_fate(event, fate_id, c_DTid if str(world_id) in cworlds else l_DTid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Sansheya Fate - You Are What You Drink")
+                        elif fate_id == 1922 and str(world_id) in lworlds:
+                            await process_fate(event, fate_id, l_mascot, fatewebhook, "Mascot Fate - Murder")
+                        elif fate_id == 1871 and str(world_id) in lworlds:
+                            await process_fate(event, fate_id, l_serpent, fatewebhook, "Serpent Fate - Lord Seethes")
+
+
 
                         if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
                             del message_ids[(fate_id, world_id)]
@@ -216,14 +229,14 @@ async def get_from_database(hunt_id, world_id, instance):
     cursor = conn.cursor()
     cursor.execute('SELECT deathtimer FROM hunts WHERE hunt_id = ? AND world_id = ? AND instance = ?', (hunt_id, world_id, instance))
     result = cursor.fetchone()
-    print(f"Retrieved entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance} from the database: {result}")
+    #print(f"Retrieved entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance} from the database: {result}")
     conn.close()
     return result
 
 async def delete_from_database(hunt_id, world_id, instance):
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
-    print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance}.")
+    #print(f"Deleted entry for hunt_id {hunt_id}, world_id {world_id}, instance {instance}.")
     cursor.execute('DELETE FROM hunts WHERE hunt_id = ? AND world_id = ? AND instance = ?', (hunt_id, world_id, instance))
     conn.commit()
     conn.close()
