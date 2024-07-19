@@ -34,7 +34,7 @@ l_DTid = os.getenv("L_Sansheya_ROLE")
 c_DTid = os.getenv("C_Sansheya_ROLE")
 
 WEBSOCKET_URL = os.getenv('WEBSOCKET_URL')
-MAX_MESSAGE_AGE = 900  # 15 minutes
+MAX_MESSAGE_AGE = 1800  # 15 minutes
 
 # Initialize hunt dictionaries
 huntDic = requests.get(huntDict_url).json()
@@ -52,16 +52,16 @@ fate_to_hunt_map = {
     831: 4375,  # Senmurv
     556: 2961,   # Minhocao
     1862: 13399,   # Sansheya
+    1871: 1,
+    1922: 1
 }
 hunt_to_cooldown_map = {
     5986: 108 * 3600,  # Orghana
     4375: 108 * 3600,  # Senmurv
     2961: 57 * 3600,   # Minhocao
-    13399: 84 * 3600   # Sansheya
+    13399: 84 * 3600,   # Sansheya
+    1: 2 * 2
 }
-
-
-
 
 # Dictionary to store message IDs
 message_ids = {}
@@ -104,7 +104,6 @@ async def process_fate(event, fate_id, role_id, webhook_url, title):
 
             flag_x, flag_y = get_flag_coordinates(raw_x, raw_y)
             world_name = EUworlds[str(world_id)]
-            fate_name = fates[str(fate_id)]
             zone_name = zones[str(zone_id)]
             status_name = status[str(status_id)]
 
@@ -177,26 +176,31 @@ async def filter_events():
                             #print(cooldown_time)
                             if current_time - deathtimer > cooldown_time:
                                 await delete_from_database(hunt_id, world_id, instance)
-                                #print(f"Checking if window open... It is! Deleted {hunt_id}, {world_id}, {instance} from database")
+                                print(f"Checking if window open... It is! Deleted {hunt_id}, {world_id}, {instance} from database")
+
+                                if fate_id == 1259:
+                                    print("orghana")
+                                    await process_fate(event, fate_id, c_oid if str(world_id) in cworlds else l_oid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Orghana Fate - Not Just a Tribute")
+                                    
+                                elif fate_id == 831:
+                                    print("senmurv")
+                                    await process_fate(event, fate_id, c_sid if str(world_id) in cworlds else l_sid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Senmurv Fate - Cerf's Up")
+                                    
+                                elif fate_id == 556:
+                                    await process_fate(event, fate_id, c_mid if str(world_id) in cworlds else l_mid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Minhocao Fate - Core Blimey")
+                                    print("minhocao")
+                                    
+                                elif fate_id == 1862:
+                                    print("sansheya")
+                                    await process_fate(event, fate_id, c_DTid if str(world_id) in cworlds else l_DTid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Sansheya Fate - You Are What You Drink")
+                                elif fate_id == 1922 and str(world_id) in lworlds:
+                                    await process_fate(event, fate_id, l_mascot, fatewebhook, "Mica the Magical Mu Fate - Mascot Murder")
+                                elif fate_id == 1871 and str(world_id) in lworlds:
+                                    await process_fate(event, fate_id, l_serpent, fatewebhook, "Ttokrrone Fate - The Serpentlord Seethes")
                             else:
-                                #print("The window is closed! Ignoring event")
-                                continue
-
-                        if fate_id == 1259:
-                            await process_fate(event, fate_id, c_oid if str(world_id) in cworlds else l_oid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Orghana Fate - Not Just a Tribute")
-                        elif fate_id == 831:
-                            await process_fate(event, fate_id, c_sid if str(world_id) in cworlds else l_sid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Senmurv Fate - Cerf's Up")
-                        elif fate_id == 556:
-                            await process_fate(event, fate_id, c_mid if str(world_id) in cworlds else l_mid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Minhocao Fate - Core Blimey")
-                        elif fate_id == 1862:
-                            await process_fate(event, fate_id, c_DTid if str(world_id) in cworlds else l_DTid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Sansheya Fate - You Are What You Drink")
-                        elif fate_id == 1922 and str(world_id) in lworlds:
-                            await process_fate(event, fate_id, l_mascot, fatewebhook, "Mascot Fate - Murder")
-                        elif fate_id == 1871 and str(world_id) in lworlds:
-                            await process_fate(event, fate_id, l_serpent, fatewebhook, "Serpent Fate - Lord Seethes")
-
-
-
+                                print("The window is closed! Ignoring event")
+                                print(f"fate_id {fate_id}, world_id {world_id}, instance {instance}")
+                                
                         if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
                             del message_ids[(fate_id, world_id)]
 
