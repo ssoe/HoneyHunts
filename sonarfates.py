@@ -156,7 +156,6 @@ async def filter_events():
                     world_id = event.get("WorldId")
                     status_id = event.get("Status")
                     instance = event.get('InstanceId')
-
                     if event_type in filter_types and fate_id in fate_to_hunt_map and world_id in EU:
                         #print(f"Received event: {event}")
                         #print("Now checking database for dead hunts...")
@@ -173,25 +172,22 @@ async def filter_events():
                             current_time = int(time.time())
                             cooldown_time = hunt_to_cooldown_map.get(hunt_id)
                             #print(type(deathtimer), type(current_time), type(cooldown_time))
-                            #print(cooldown_time)
                             if current_time - deathtimer > cooldown_time:
+                                print(f"CD {cooldown_time}, CT {current_time}, DT {deathtimer}, CT - DT {current_time - deathtimer}")
                                 await delete_from_database(hunt_id, world_id, instance)
                                 print(f"Checking if window open... It is! Deleted {hunt_id}, {world_id}, {instance} from database")
 
                                 if fate_id == 1259:
-                                    print("orghana")
+                                    #print("orghana")
                                     await process_fate(event, fate_id, c_oid if str(world_id) in cworlds else l_oid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Orghana Fate - Not Just a Tribute")
-                                    
                                 elif fate_id == 831:
-                                    print("senmurv")
+                                   # print("senmurv")
                                     await process_fate(event, fate_id, c_sid if str(world_id) in cworlds else l_sid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Senmurv Fate - Cerf's Up")
-                                    
                                 elif fate_id == 556:
                                     await process_fate(event, fate_id, c_mid if str(world_id) in cworlds else l_mid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Minhocao Fate - Core Blimey")
-                                    print("minhocao")
-                                    
+                                    #print("minhocao")                                   
                                 elif fate_id == 1862:
-                                    print("sansheya")
+                                    #print("sansheya")
                                     await process_fate(event, fate_id, c_DTid if str(world_id) in cworlds else l_DTid, chaoswebhook if str(world_id) in cworlds else lightwebhook, "Sansheya Fate - You Are What You Drink")
                                 elif fate_id == 1922 and str(world_id) in lworlds:
                                     await process_fate(event, fate_id, l_mascot, fatewebhook, "Mica the Magical Mu Fate - Mascot Murder")
@@ -199,8 +195,10 @@ async def filter_events():
                                     await process_fate(event, fate_id, l_serpent, fatewebhook, "Ttokrrone Fate - The Serpentlord Seethes")
                             else:
                                 print("The window is closed! Ignoring event")
-                                print(f"fate_id {fate_id}, world_id {world_id}, instance {instance}")
-                                
+                                worldName = EUworlds[str(world_id)]
+                                print(f"fate_id {fate_id}, world {worldName[0]}, instance {instance}")
+                                print(f"CD {cooldown_time}, CT {current_time}, DT {deathtimer}, CT - DT {current_time - deathtimer}")
+
                         if status_id in [3, 4] or (fate_id, world_id) in message_ids and time.time() - message_ids[(fate_id, world_id)][1] > MAX_MESSAGE_AGE:
                             del message_ids[(fate_id, world_id)]
 
@@ -224,7 +222,7 @@ async def filter_events():
 
         except Exception as e:
             print(f"Unexpected error with WebSocket: {e}")
-            traceback.print_stack()
+            #traceback.print_stack()
             await asyncio.sleep(5)
             continue
 
