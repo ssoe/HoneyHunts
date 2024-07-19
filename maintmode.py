@@ -2,10 +2,9 @@ import sqlite3
 import asyncio
 
 async def maintmode_set_db(epoch_time):
-    mtime = epoch_time + 82080 #minhocao time
-    time = epoch_time + 121000 #everything else
+    mtime = epoch_time - 82080 #minhocao time
+    time = epoch_time - 121000 #everything else
 
-    # Connect to SQLite database
     conn = sqlite3.connect('hunts.db')
     cursor = conn.cursor()
 
