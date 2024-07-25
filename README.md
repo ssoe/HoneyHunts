@@ -21,9 +21,13 @@ See "HuntDictionary.json" in repo for example of dictionary expected, this is bu
 
 
 Example relays from websocket
+
 Hunt:
+
 {"ActorId":1073828849,"CurrentHp":914137,"MaxHp":992341,"Players":37,"Type":"Hunt","Key":"407_13145_1","Id":13145,"Coords":{"X":-680.0,"Y":188.0,"Z":59.0},"WorldId":407,"ZoneId":1187,"InstanceId":1}
+
 Fate:
+
 {"Progress":0,"Status":2,"StartTime":1721918545000.0,"Duration":1800000.0,"Type":"Fate","Key":"39_838_0","Id":838,"Coords":{"X":-453.0,"Y":701.0,"Z":-84.0},"WorldId":39,"ZoneId":398,"InstanceId":0}
 
 
