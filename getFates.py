@@ -1,125 +1,79 @@
 import discord
 from discord.ext import commands
 import sqlite3
+import time
+import traceback
 import os
+import asyncio
 from dotenv import load_dotenv
+import config
+import utils
+import db_utils
 
 load_dotenv()
-# Initialize the bot
-intents = discord.Intents.default()
-intents.message_content = True 
-bot = commands.Bot(command_prefix='!', intents=intents)
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 
-# Your dictionaries
-world_dict = {
-    "33": "Twintania",
-    "36": "Lich",
-    "42": "Zodiark",
-    "56": "Phoenix",
-    "66": "Odin",
-    "67": "Shiva",
-    "402": "Alpha",
-    "403": "Raiden",
-    "39": "Omega",
-    "71": "Moogle",
-    "80": "Cerberus",
-    "83": "Louisoix",
-    "85": "Spriggan",
-    "97": "Ragnarok",
-    "400": "Sagittarius",
-    "401": "Phantom"
-}
+# Initialize Discord bot
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-status_dict = {
-    "1": "Preparation: Talk to NPC to start",
-    "2": "Running",
-    "3": "Completed",
-    "4": "FATE FAILED"
-}
+@bot.command(name='fates')
+async def get_fates(ctx, fate_name: str, world_name: str = None):
+    try:
+        # Map common names to Fate IDs
+        fate_map = {
+            "senmurv": 831,
+            "orghana": 1259,
+            "sansheya": 1862,
+            "minhocao": 556
+        }
+        
+        fate_id = fate_map.get(fate_name.lower())
+        if not fate_id:
+            await ctx.send(f"Unknown fate: {fate_name}. Available: senmurv, orghana, sansheya, minhocao")
+            return
 
-# Function to get the last 5 statuses from fates.db
-def get_last_5_statuses(fate_id, world_id, instance=0):
-    conn = sqlite3.connect('fates.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT status, time FROM fate_statuses WHERE fate_id = ? AND world_id = ? AND instance = ? ORDER BY time DESC LIMIT 5', (fate_id, world_id, instance))
-    results = cursor.fetchall()
-    conn.close()
-    return results
+        query = 'SELECT * FROM fate_statuses WHERE fate_id = ?'
+        params = [fate_id]
+        
+        if world_name:
+            world_id = utils.find_best_match(world_name, config.EU_WORLDS)
+            if world_id:
+                query += ' AND world_id = ?'
+                params.append(world_id)
+            else:
+                await ctx.send(f"Unknown world: {world_name}")
+                return
+                
+        query += ' ORDER BY time DESC LIMIT 5'
+        
+        async with db_utils.get_async_db_connection('fates.db') as conn:
+            cursor = await conn.execute(query, tuple(params))
+            rows = await cursor.fetchall()
+        
+        if not rows:
+            await ctx.send("No fate history found.")
+            return
+            
+        message = f"**Fate History for {fate_name.capitalize()}**\n"
+        for row in rows:
+            # row: fate_id, world_id, status, time, starttime, instance
+            w_id = str(row[1])
+            status_id = str(row[2])
+            timestamp = row[3]
+            
+            w_name = config.EU_WORLDS.get(w_id, ["Unknown"])[0]
+            s_name = config.FATE_STATUS.get(status_id, ["Unknown"])[0]
+            
+            message += f"**{w_name}**: {s_name} <t:{timestamp}:R>\n"
+            
+        await ctx.send(message)
 
-def find_best_match(world_name):
-    world_names = list(world_dict.values())
-    world_name = world_name.lower()
-    matches = [(name, name.lower().find(world_name)) for name in world_names if world_name in name.lower()]
-    matches = [match for match in matches if match[1] == 0]  # Ensure it matches from the beginning of the name
-    matches.sort(key=lambda x: (x[1], len(x[0])))  # Sort by position and length
-    return matches[0][0] if matches else None
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
+        traceback.print_exc()
 
-# Command to get the last 5 statuses for Senmurv
-@bot.command()
-async def senmurv(ctx, world_name):
-    # Find the world_id corresponding to the best matching world_name
-    matched_world_name = find_best_match(world_name)
-    if not matched_world_name:
-        await ctx.send("Invalid world name.")
-        return
-    world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
-
-    # Fetch the last 5 statuses
-    fate_id = 831  
-    statuses = get_last_5_statuses(fate_id, world_id)
-
-    # Prepare the message
-    message = f"Last 5 known states for Senmurv fate on {matched_world_name}:\n"
-    for status, time in statuses:
-        message += f"- {status_dict[str(status)]} at <t:{time}> <t:{time}:R>\n"
-
-    # Send the message
-    await ctx.send(message)
-
-# Command to get the last 5 statuses for Orghana
-@bot.command()
-async def orghana(ctx, world_name):
-    # Find the world_id corresponding to the best matching world_name
-    matched_world_name = find_best_match(world_name)
-    if not matched_world_name:
-        await ctx.send("Invalid world name.")
-        return
-    world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
-
-    # Fetch the last 5 statuses
-    fate_id = 1259  
-    statuses = get_last_5_statuses(fate_id, world_id)
-
-    # Prepare the message
-    message = f"Last 5 known states for Orghana fate on {matched_world_name}:\n"
-    for status, time in statuses:
-        message += f"- {status_dict[str(status)]} at <t:{time}> <t:{time}:R>\n"
-
-    # Send the message
-    await ctx.send(message)
-
-# Command to get the last 5 statuses for Orghana
-@bot.command()
-async def sansheya(ctx, world_name, instance):
-    # Find the world_id corresponding to the best matching world_name
-    matched_world_name = find_best_match(world_name)
-    if not matched_world_name:
-        await ctx.send("Invalid world name.")
-        return
-    world_id = [k for k, v in world_dict.items() if v == matched_world_name][0]
-
-    # Fetch the last 5 statuses
-    fate_id = 1862 
-    statuses = get_last_5_statuses(fate_id, world_id, instance)
-
-    # Prepare the message
-    message = f"Last 5 known states for Sansheya fate on {matched_world_name} in instance {instance}:\n"
-    for status, time in statuses:
-        message += f"- {status_dict[str(status)]} at <t:{time}> <t:{time}:R>\n"
-
-    # Send the message
-    await ctx.send(message)
-    
 # Run the bot
-bot.run(DISCORD_TOKEN)
+if __name__ == "__main__":
+    bot.run(DISCORD_TOKEN)
