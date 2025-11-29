@@ -1,57 +1,24 @@
-import sqlite3
+import random
+import math
+import config
+import db_utils
+from utils import Location
+from copy import deepcopy
+from functools import partial
 
-HEAVENSWARD_ZONES = [397, 398, 399, 400, 401, 402]
+class Point:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
-class Location:
-    def __init__(self, raw_x, raw_y, zone_id, pos_id=None, loc_type=None):
-        self.zone_id = zone_id
-        self.raw_x = raw_x
-        self.raw_y = raw_y
-        self.pos_id = pos_id
-        self.type = loc_type  
-    
-    @classmethod
-    def from_coord(cls, coord_x, coord_y, zone_id, pos_id=None, loc_type=None):
-        return cls(Location.coord_to_raw(coord_x, zone_id), Location.coord_to_raw(coord_y, zone_id), zone_id, pos_id, loc_type)
-
-    @classmethod
-    def from_flag_string(cls, string, zone_id, pos_id=None, loc_type=None):
-        x, y = list(map(float, string.split(',')))
-        return Location.from_coord(x, y, zone_id, pos_id, loc_type)
-
-    @staticmethod
-    def raw_to_coord(raw_coord, zone_id):
-        map_size = 43.1 if zone_id in HEAVENSWARD_ZONES else 41
-        return (map_size * ((raw_coord + 1024) / 2048)) + 1
-    
-    def flag(self):
-        return (self.raw_to_coord(self.raw_x, self.zone_id), self.raw_to_coord(self.raw_y, self.zone_id))
-    
-    @staticmethod
-    def coord_to_raw(coord, zone_id):
-        map_size = 43.1 if zone_id in HEAVENSWARD_ZONES else 41
-        return (coord - 1) * (2048 / map_size) - 1024
-
-    def __repr__(self):
-        pos_id_str = f"pos_id:{self.pos_id}" if self.pos_id else ""
-        type_str = f"type:{self.type}" if self.type else ""
-        return f"(Location: zone: {self.zone_id}, raw: ({self.raw_x}, {self.raw_y}), {pos_id_str}, {type_str})"
-
-def kmeans(points, initial_guesses, iterations=100):
-    
+def kmeans(points, initial_guesses, iterations=20):
     """
-    Apply K-means clustering to the spawn locations using, say, the faloop locations as an initial guess.
-    This returns a dictionary, with the optimized coordinates as keys and the associated spawn coordinate data as values.
+    Assigns each spawn point to the nearest pre-determined location (initial_guesses).
+    Returns a dictionary with the pre-determined locations as keys and assigned points as values.
     """
-    from copy import deepcopy
-    from functools import partial
-    from math import sqrt
-
-    def mean(data):
-        return sum(data) / len(data)
-
+    
     def dist(p, q):
-        return sqrt((p.raw_x - q.raw_x) ** 2 + (p.raw_y - q.raw_y) ** 2)
+        return math.sqrt((p.raw_x - q.raw_x) ** 2 + (p.raw_y - q.raw_y) ** 2)
 
     def assign_data(centroids, data):
         """
@@ -63,39 +30,30 @@ def kmeans(points, initial_guesses, iterations=100):
             d[closest_centroid].append(point)
         return d
 
-    def compute_centroids(groups):
-        """
-        For each centroid and its associated list of spawn coordinates, compute the average coordinate from the
-        spawn coordinates and update the centroid coordinates with that new value. Sometimes there are no 
-        spawn coordinates associated with a centroid; in that case we just drop it from the list of centroids
-        """
-        new_groups = {}
-        for group in groups:
-            if len(groups[group]) == 0:
-                continue
-            mean_x = mean([x.raw_x for x in groups[group]])
-            mean_y = mean([x.raw_y for x in groups[group]])
-            new_groups[Location(mean_x, mean_y, group.zone_id, group.pos_id, group.type)] = groups[group]
-        return new_groups
+    # Snap to grid: assign each point to the nearest initial guess
+    labelled = assign_data(initial_guesses, points)
+    
+    # Filter out empty clusters so we don't return points with no spawns
+    final_clusters = {k: v for k, v in labelled.items() if v}
+    
+    return final_clusters
 
-    centroids = deepcopy(initial_guesses)
-    for _ in range(iterations):
-        """
-        K-means is meant to be repeated a bunch of times to allow the coordinates reach a 
-        happy state. In our case (because our initial coordinates are so close to the data) 
-        we dont _have_ to do this, but me might as well since it's fast.
-        """
-        labelled = assign_data(centroids, points)
-        centroids = compute_centroids(labelled)
-    return centroids
+async def get_adjusted_spawn_locations(world_id, zone_id, instance):
+    async with db_utils.get_async_db_connection('hunts.db') as conn:
+        cursor = await conn.execute('SELECT rawX, rawY FROM mapping WHERE world_id = ? AND zone_id = ? AND instance = ?', (world_id, zone_id, instance))
+        rows = await cursor.fetchall()
+        spawn_data = [Location(float(row[0]), float(row[1]), zone_id) for row in rows]
 
-def get_adjusted_spawn_locations(world_id, zone_id, instance):
-    with sqlite3.connect('hunts.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('''SELECT rawX, rawY FROM mapping WHERE world_id = ? AND zone_id = ? AND instance = ?''', (world_id, zone_id, instance))
-        spawn_data = [Location(int(x[0]), int(x[1]), zone_id) for x in cursor.fetchall()]
+        cursor = await conn.execute('SELECT coords, posId, type FROM zone_positions WHERE type = 1 AND zoneId = ?', (zone_id,))
+        rows = await cursor.fetchall()
+        zone_pos = [Location.from_flag_string(row[0], zone_id, pos_id=row[1], loc_type=row[2]) for row in rows]
+    
+    if not spawn_data:
+        return []
+        
+    if not zone_pos:
+        # If no pre-determined points, fallback to returning raw points or some default behavior
+        # For now, let's return raw points to avoid crashing, but maybe we should log a warning
+        return spawn_data
 
-        cursor.execute('''SELECT coords, posId, type FROM zone_positions WHERE zoneId = ?''', (zone_id,))
-        zone_pos = [Location.from_flag_string(x[0], zone_id, pos_id=x[1], loc_type=x[2]) for x in cursor.fetchall()]
-
-    return kmeans(spawn_data, zone_pos).keys()
+    return list(kmeans(spawn_data, zone_pos).keys())
